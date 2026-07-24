@@ -1,0 +1,74 @@
+{
+  "_meta": {
+    "descripcion": "Hechos duros del negocio ITERA, inferidos de conversaciones reales de los vendedores Luis Garcia, Juan Francisco Trujillo y Miranda Huerta (reportes 2026-07-16 a 2026-07-22). VALIDAR CON BENNY antes de produccion — estos datos vienen de chats, no de una fuente normativa. El agente NUNCA debe inventar datos que no esten aqui o confirmados en vivo contra Odoo.",
+    "ultima_actualizacion": "2026-07-24",
+    "estado": "PENDIENTE_VALIDACION_HUMANA (excepto 'pagos.datos_cuenta', validado por Benny 2026-07-24)"
+  },
+  "mayoreo": {
+    "ropa_minimo_piezas": 6,
+    "ropa_regla": "Los precios de mayoreo se aplican a partir de las 6 piezas. El cliente puede combinar modelos y tallas como prefiera, o pedir surtido.",
+    "accesorios_minimo_piezas": 40,
+    "accesorios_excepcion": "En accesorios el mayoreo normalmente aplica desde 40 piezas, pero se le puede respetar el precio de mayoreo a partir de 25 piezas como cortesia para cerrar.",
+    "precio_preventa_es_el_mas_bajo": true,
+    "nota_preventa": "El precio de preventa es el mas bajo que se maneja. No hay descuento adicional por volumen mas alla del mayoreo."
+  },
+  "cotizacion": {
+    "vigencia_horas": 24,
+    "texto_vigencia": "Su cotizacion es valida por 24hrs unicamente. Le recordamos que su mercancia esta sujeta a disponibilidad, por lo que sus piezas no quedan apartadas hasta que su pago es confirmado. Esto lo hacemos para evitar faltantes en sus pedidos.",
+    "no_se_aparta_sin_pago": true
+  },
+  "envio": {
+    "gratis_umbral_pesos": 4000,
+    "regla_envio_gratis": "Si el pedido supera los $4,000 el envio corre por cuenta de la empresa (gratis). Debajo de ese monto el envio tiene costo segun destino.",
+    "usar_como_incentivo": "Si el pedido esta cerca de $4,000, sugerir agregar unas piezas mas para alcanzar envio gratis.",
+    "paqueterias": ["Estafeta", "DHL", "FedEx", "Paquetexpress"],
+    "paqueteria_default": "Estafeta",
+    "ocurre_disponible": true,
+    "nota_ocurre": "Se puede enviar a 'ocurre' (recoleccion en centro de distribucion) si el cliente vive en zona extendida, para mejorar tiempos de entrega.",
+    "no_salen_fines_de_semana": true,
+    "nota_dias": "Las paqueterias no laboran fines de semana. Un pedido pagado en fin de semana sale el lunes.",
+    "IMPORTANTE_cotizador_real": "Los costos de envio reales se cotizan con la API de envia.com (tool cotizar_envio), NO se inventan. Ejemplos historicos de vendedores humanos ($300 a Cuauhtemoc Chih., $315 a Papantla Ver.) son solo referencia, no tarifas fijas."
+  },
+  "almacen_despacho": {
+    "sucursal": "Acuna",
+    "nota": "Este agente despacha SIEMPRE desde el almacen de Acuna. Las rutas de Odoo resuelven automaticamente el surtido desde otros almacenes si a Acuna le falta stock. El agente solo crea la cotizacion contra Acuna; no gestiona el surtido cross-almacen.",
+    "sucursal_fisica_humanos": "El equipo humano de ventas esta en Torreon, Coahuila. NO mencionar Torreon como origen para esta unidad de negocio."
+  },
+  "pagos": {
+    "medios": ["Deposito Oxxo (Codigo Spin)", "Transferencia/Deposito BBVA", "Tarjeta de credito (link Mercado Pago)"],
+    "datos_cuenta": {
+      "estado": "VALIDADO_POR_BENNY",
+      "fecha_validacion": "2026-07-24",
+      "titular": "David Samir Benito García",
+      "bbva_numero_cuenta_ventanilla": "0484553764",
+      "bbva_clabe_transferencia": "012060004845537649",
+      "oxxo_codigo_spin": "2242 1701 9017 2332",
+      "concepto_pago": "Pedir al cliente que agregue su nombre en el concepto/referencia del pago para identificarlo mas facil.",
+      "mercado_pago": "El link de Mercado Pago se genera por monto; si el cliente elige tarjeta de credito, escalar para que se genere el link.",
+      "ADVERTENCIA_NO_ALTERAR": "Datos de deposito REALES confirmados por Benny. NUNCA alterar, abreviar, redondear ni cambiar un solo digito; compartirlos exactamente como estan escritos aqui."
+    },
+    "como_compartir": "Cuando el cliente pide la cuenta o elige transferencia/deposito/Oxxo, el agente SI comparte estos datos (ya estan validados), copiandolos exactos. Para tarjeta de credito, escalar para el link de Mercado Pago.",
+    "confirmacion_pago": "El agente comparte la cuenta para RECIBIR el pago, pero NUNCA confirma un pago por su cuenta. Cuando el cliente dice que ya pago o manda comprobante, el agente notifica 1:1 a Benny y finanzas (tool notificar_pago_multiple) y responde al cliente algo generico ('gracias, en breve confirmamos tu pago'). El pago se marca confirmado solo cuando un humano lo valida."
+  },
+  "facturacion": {
+    "disponible": true,
+    "iva_porcentaje": 16,
+    "requisitos": ["Constancia de situacion fiscal (RFC)", "Uso de CFDI"],
+    "nota": "Se factura agregando el 16% de IVA. Se piden constancia de situacion fiscal y el uso de CFDI (ej. 'Adquisicion de mercancias')."
+  },
+  "garantia_y_cambios": {
+    "PENDIENTE_validar": "Los vendedores mencionan resolver percances (ej. modelo equivocado) recompensando con accesorios de regalo, y correccion de guias por error de direccion. NO hay una politica de garantia formal documentada. Cualquier tema de garantia/devolucion/reembolso/producto danado se ESCALA a Benny, no se resuelve por el agente."
+  },
+  "tallas": {
+    "infantil": ["1", "2", "4", "6", "8", "10", "12"],
+    "juvenil_rango_edad": "14-16 anos",
+    "letras": ["XS", "CH/X", "M", "G", "EG"],
+    "equivalencias": "XS=X, X=M, M=G, G=EG (juvenil ~14, aprox #14), EG=2EG (juvenil ~16, aprox #16). Talla 1 = 1 ano, Talla 2 = 2 anos.",
+    "nota_dama": "Algunos catalogos (ej. patrio infantil) NO manejan tallas de dama; las juveniles abarcan 14-16 anos. Confirmar disponibilidad real de tallas de dama contra Odoo antes de prometer.",
+    "tallas_agotadas_catalogo": "En los catalogos PDF, las tallas marcadas en color rojo estan agotadas; las blancas disponibles. El agente confirma disponibilidad real contra Odoo, no contra el PDF."
+  },
+  "catalogos": {
+    "nombres": ["PATRIO PREVENTA", "PATRIO PREVENTA SIN PRECIO", "ACCESORIOS"],
+    "nota": "Los catalogos se resurten cada semana. 'Sin precio' se comparte cuando el cliente quiere promocionar/revender sin mostrar el costo de compra."
+  }
+}

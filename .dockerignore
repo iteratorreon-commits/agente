@@ -1,0 +1,27 @@
+# Nunca hornear secretos ni estado local en la imagen.
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+logs/
+data/
+
+# Entornos y cache de Python.
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Control de versiones y metadatos.
+.git/
+.gitignore
+.dockerignore
+
+# Docs / material de trabajo que no necesita el runtime.
+README.md
+DEPLOY.md

@@ -1,0 +1,78 @@
+# Blueprint de Render para el agente vendedor de WhatsApp (ITERA).
+# Deploy: Render -> New -> Blueprint -> conecta el repo -> aplica este archivo.
+# Los secretos (sync: false) NO viven aqui: se cargan en el dashboard (Environment).
+services:
+  - type: web
+    name: agente-vendedor-wa
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter            # always-on (~$7/mo). NO usar 'free': se duerme y truena el limite de 10s de ManyChat.
+    region: ohio             # US-central/este, cerca de Mexico. Alternativas: oregon, virginia.
+    numInstances: 1          # SQLite NO se comparte entre replicas -> una sola instancia.
+    healthCheckPath: /health
+    autoDeploy: true         # cada push a la rama desplegado -> redeploy automatico.
+
+    # Disco persistente: aqui viven la memoria de sesiones (SQLite) y la bitacora.
+    # Sin esto, cada deploy borraria las conversaciones a medias.
+    disk:
+      name: datos
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      # --- Hosting / comportamiento (no secretos, se quedan aqui) ---
+      - key: DB_PATH
+        value: /data/agente.db
+      - key: DECISION_LOG_PATH
+        value: /data/logs/decisiones.jsonl
+      - key: AGENTE_SHADOW_MODE
+        value: "1"           # ARRANCA EN MODO SOMBRA. Cambiar a "0" cuando quieras que conteste a clientes.
+      - key: AGENTE_MODEL
+        value: claude-opus-4-8
+      - key: AGENTE_EFFORT
+        value: medium
+
+      # --- Secretos y config del negocio: cargar en el dashboard (Environment) ---
+      # Anthropic (¡recargar saldo!)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Odoo
+      - key: ODOO_URL
+        sync: false
+      - key: ODOO_DB
+        sync: false
+      - key: ODOO_UID
+        sync: false
+      - key: ODOO_API_KEY
+        sync: false
+      - key: ODOO_WAREHOUSE_ID
+        sync: false
+      - key: ODOO_SALES_TEAM_ID
+        sync: false
+      - key: ODOO_PRICELIST_ID
+        sync: false
+      # envia.com  (¡ENVIA_BASE_URL debe ser https://api.envia.com — produccion, NO el api-test!)
+      - key: ENVIA_API_TOKEN
+        sync: false
+      - key: ENVIA_BASE_URL
+        sync: false
+      - key: ENVIA_ORIGEN_CP
+        sync: false
+      - key: ENVIA_ORIGEN_ESTADO
+        sync: false
+      - key: ENVIA_ORIGEN_CIUDAD
+        sync: false
+      - key: ENVIA_CARRIERS
+        sync: false
+      # ManyChat
+      - key: MANYCHAT_API_TOKEN
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: BENNY_SUBSCRIBER_ID
+        sync: false
+      - key: NOTIFY_SUBSCRIBER_IDS
+        sync: false
+      # OpenAI (transcripcion de audios)
+      - key: OPENAI_API_KEY
+        sync: false
