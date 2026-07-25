@@ -164,7 +164,17 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
             image_url, texto = texto.strip(), ""
         elif tipo == "audio":
             audio_url, texto = texto.strip(), ""
-        # 'video'/'other': se deja como esta; el agente pedira el dato por texto.
+        else:
+            # video / archivo / desconocido: el modelo no los procesa. Antes se dejaba la
+            # URL cruda como si fuera el mensaje del cliente y el agente intentaba
+            # interpretar el link. Se reemplaza por un marcador para que pida una foto o
+            # texto. NO es un caso raro: en el bimestre el 5.6% de los mensajes de
+            # clientes son video (1,626), diez veces mas que los audios.
+            etiqueta = "un video" if tipo == "video" else "un archivo"
+            texto = (
+                f"[El cliente envio {etiqueta}, que no puedo ver. Pedirle amablemente una "
+                "FOTO del modelito o que escriba lo que necesita.]"
+            )
 
     # --- ENSENANZA de Benny (solo el dueno): 'APRENDE: <indicacion>' ---
     # Guarda la indicacion como conocimiento permanente (se inyecta en el prompt de todas
