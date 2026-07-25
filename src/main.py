@@ -22,7 +22,7 @@ import re
 import httpx
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 
-from . import decision_log, escalation_rules, request_context, session_store
+from . import aprendizajes, decision_log, escalation_rules, request_context, session_store
 from .agent import responder
 from .config import cfg
 from .manychat_api import enviar_mensaje
@@ -33,6 +33,11 @@ app = FastAPI(title="Agente Vendedor WhatsApp — ITERA")
 
 _TIPOS_IMG = ("image/jpeg", "image/png", "image/gif", "image/webp")
 _URL_SOLA = re.compile(r"^https?://\S+$")
+# Comando con el que Benny le ENSENA algo al agente por WhatsApp.
+_APRENDE_RE = re.compile(
+    r"^\s*(?:aprende|aprender|aprendizaje|nota|recuerda)\s*[:\-]\s*(.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def _es_url_sola(texto: str) -> bool:
@@ -160,6 +165,24 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
         elif tipo == "audio":
             audio_url, texto = texto.strip(), ""
         # 'video'/'other': se deja como esta; el agente pedira el dato por texto.
+
+    # --- ENSENANZA de Benny (solo el dueno): 'APRENDE: <indicacion>' ---
+    # Guarda la indicacion como conocimiento permanente (se inyecta en el prompt de todas
+    # las conversaciones) para que el agente no vuelva a preguntar/escalar lo mismo. Este
+    # mensaje NO corre por el agente.
+    if subscriber_id == cfg.benny_subscriber_id and texto:
+        m = _APRENDE_RE.match(texto)
+        if m:
+            entrada = aprendizajes.agregar(m.group(1).strip(), autor="Benny")
+            enviar_mensaje(
+                subscriber_id,
+                f'✅ Aprendido y guardado:\n"{entrada["texto"]}"\n\n'
+                "Lo aplicare de aqui en adelante 🙌",
+            )
+            decision_log.registrar(
+                subscriber_id, texto, accion="aprendizaje", respuesta=entrada["texto"]
+            )
+            return
 
     # Audio -> transcripcion (se trata como texto del cliente).
     if audio_url:

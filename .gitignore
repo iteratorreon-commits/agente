@@ -3,6 +3,7 @@
 *.db
 data/
 logs/*.jsonl
+knowledge/aprendizajes.json
 __pycache__/
 *.pyc
 .venv/

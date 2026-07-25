@@ -25,6 +25,8 @@ services:
         value: /data/agente.db
       - key: DECISION_LOG_PATH
         value: /data/logs/decisiones.jsonl
+      - key: APRENDIZAJES_PATH
+        value: /data/aprendizajes.json
       - key: AGENTE_SHADOW_MODE
         value: "1"           # ARRANCA EN MODO SOMBRA. Cambiar a "0" cuando quieras que conteste a clientes.
       - key: AGENTE_MODEL

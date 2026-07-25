@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import anthropic
 
+from . import aprendizajes
 from .config import cfg
 from .tools import TOOLS
 
@@ -99,10 +100,14 @@ def responder(messages: list[dict]) -> tuple[str, list[str]]:
     """
     tools_usadas: list[str] = []
 
+    # Inyecta el conocimiento aprendido (indicaciones de Benny) en cada conversacion,
+    # para que no tenga que repetirlas y el agente no vuelva a escalar lo ya resuelto.
+    system = SYSTEM_PROMPT + aprendizajes.render_para_prompt()
+
     runner = _client.beta.messages.tool_runner(
         model=cfg.model,
         max_tokens=2048,
-        system=SYSTEM_PROMPT,
+        system=system,
         output_config={"effort": cfg.effort},
         tools=TOOLS,
         messages=messages,

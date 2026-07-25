@@ -91,6 +91,12 @@ class Config:
     )
 
     knowledge_dir: Path = BASE_DIR / "knowledge"
+    # Conocimiento aprendido en vivo (Benny ensena por WhatsApp con 'APRENDE:'). Se guarda
+    # aparte del knowledge del repo porque cambia en runtime -> en produccion va al disco
+    # persistente (/data), si no se borraria en cada deploy.
+    aprendizajes_path: str = os.getenv(
+        "APRENDIZAJES_PATH", str(BASE_DIR / "knowledge" / "aprendizajes.json")
+    )
 
 
 cfg = Config()

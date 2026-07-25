@@ -19,7 +19,10 @@ from ..manychat_api import enviar_mensaje
 def escalar_impl(motivo: str, contexto: str, urgente: bool = False) -> dict:
     """Envia una escalacion 1:1 a Benny. Devuelve {'escalado': bool, 'detalle': str}."""
     prefijo = "🚨 URGENTE" if urgente else "🔔 Consulta del agente vendedor"
-    texto = f"{prefijo}\n\nMotivo: {motivo}\n\nContexto: {contexto}"
+    texto = (
+        f"{prefijo}\n\nMotivo: {motivo}\n\nContexto: {contexto}\n\n"
+        '💡 Tip: responde con "APRENDE: <la regla>" y lo guardo para no volver a preguntarte.'
+    )
     res = enviar_mensaje(cfg.benny_subscriber_id, texto)
     return {"escalado": res["ok"], "detalle": res["detalle"]}
 
