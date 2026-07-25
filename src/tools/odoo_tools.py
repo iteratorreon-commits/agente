@@ -39,6 +39,25 @@ def _tokens(query: str) -> list[str]:
     return toks or ([query.strip()] if query and query.strip() else [])
 
 
+# Envio como linea de la cotizacion (igual que los vendedores humanos, ver S04456):
+# carrier "Standard delivery" (id 1) con su producto de servicio (id 48). El costo real
+# lo pasa el agente (viene de cotizar_envio); Odoo lo suma al total de la orden para que
+# el pago concilie completo (producto + envio).
+CARRIER_ENVIO_ID = 1
+PRODUCTO_ENVIO_ID = 48
+
+
+def _umbral_envio_gratis() -> float:
+    """Umbral de envio gratis (pesos) leido de politicas.json; 4000 por defecto."""
+    try:
+        import json as _json
+
+        with open(cfg.knowledge_dir / "politicas.json", encoding="utf-8") as f:
+            return float(_json.load(f)["envio"]["gratis_umbral_pesos"])
+    except Exception:  # noqa: BLE001
+        return 4000.0
+
+
 def _norm(v: Any) -> Any:
     """Odoo devuelve False para vacios; lo convierte a '' para texto."""
     return "" if v is False else v
@@ -302,6 +321,7 @@ def crear_cotizacion(
     cliente_nombre: str,
     cliente_telefono: str,
     lineas: list[dict],
+    costo_envio: float = 0.0,
     notas: str = "",
 ) -> str:
     """Crea una cotizacion (sale.order en borrador) en Odoo para el cliente.
@@ -311,10 +331,16 @@ def crear_cotizacion(
     NO confirma ningun pago. Devuelve el numero de orden y el total. Si algo falla, NO
     inventes un folio: informa el error y escala.
 
+    ENVIO: si ya cotizaste el envio (cotizar_envio) y tienes el costo, pasalo en 'costo_envio'
+    para que quede como LINEA de la cotizacion (el pago concilia completo, producto + envio).
+    Regla automatica de envio gratis: si el subtotal de PRODUCTOS supera el umbral (politicas,
+    $4,000), el envio NO se agrega aunque mandes costo_envio (corre por cuenta de la empresa).
+
     Args:
         cliente_nombre: Nombre del cliente.
         cliente_telefono: Telefono del cliente (se usa para buscar/crear el contacto).
         lineas: Lista de items, cada uno {"template_id": int, "cantidad": int}.
+        costo_envio: Costo del envio (de cotizar_envio) a agregar como linea. 0 = sin envio aun.
         notas: Notas internas opcionales para la cotizacion.
     """
     if not lineas:
@@ -380,6 +406,40 @@ def crear_cotizacion(
     except OdooError as exc:
         return f"ERROR_ODOO: {exc}. No se creo la cotizacion; escala o reintenta."
 
+    # --- Envio como linea estandar de la cotizacion ---
+    # 'total' aqui es el subtotal de PRODUCTOS (aun sin envio). Regla: si supera el umbral,
+    # el envio es GRATIS y NO se agrega; debajo del umbral se agrega el costo real como
+    # linea de entrega (carrier "Standard delivery"), igual que los vendedores humanos.
+    subtotal_productos = total or 0.0
+    umbral = _umbral_envio_gratis()
+    envio_gratis = subtotal_productos > umbral
+    envio_aplicado = 0.0
+    if not envio_gratis and costo_envio and costo_envio > 0:
+        try:
+            odoo.execute_kw(
+                "sale.order", "write", [[order_id], {"carrier_id": CARRIER_ENVIO_ID}]
+            )
+            odoo.create(
+                "sale.order.line",
+                {
+                    "order_id": order_id,
+                    "product_id": PRODUCTO_ENVIO_ID,
+                    "name": "Standard delivery",
+                    "product_uom_qty": 1,
+                    "price_unit": float(costo_envio),
+                    "is_delivery": True,
+                },
+            )
+            envio_aplicado = float(costo_envio)
+            orden2 = odoo.search_read(
+                "sale.order", [["id", "=", order_id]], fields=["amount_total"], limit=1
+            )
+            if orden2:
+                total = orden2[0]["amount_total"]
+        except OdooError:
+            # Si el envio no se pudo agregar, la cotizacion (sin envio) sigue siendo valida.
+            envio_aplicado = 0.0
+
     pdf_url = _pdf_cotizacion_url(order_id)
     imagen_url = _imagen_cotizacion_url(order_id, pdf_url, nombre)
 
@@ -396,11 +456,17 @@ def crear_cotizacion(
             "numero_orden": nombre,
             "order_id": order_id,
             "total": total,
+            "envio_gratis": envio_gratis,
+            "costo_envio_aplicado": envio_aplicado,
             "pdf_url": pdf_url,
             "imagen_cotizacion_url": imagen_url,
             "imagen_enviada": imagen_enviada,
             "estado": "borrador (no confirmado, no aparta piezas hasta el pago)",
             "_instruccion_cotizacion": (
+                "El 'total' YA incluye el envio (o es gratis). Sobre el envio: si "
+                "envio_gratis=true, dile al cliente que su envio es GRATIS por superar los "
+                "$4,000 🤩; si costo_envio_aplicado>0, dile que su envio (${costo_envio_aplicado}) "
+                "ya viene incluido en su total. "
                 "Si imagen_enviada=true, YA se le mando al cliente su cotizacion como FOTO: "
                 "confirmaselo (ej. 'Le envie su cotizacion <numero_orden> por $<total> 📸'). "
                 "Ademas comparte pdf_url como link por si quiere descargar el PDF. "
