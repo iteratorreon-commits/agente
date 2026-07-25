@@ -16,6 +16,9 @@ flujo en ManyChat debe ser solo: Default Reply -> Solicitud externa (sin paso de
 """
 from __future__ import annotations
 
+import base64
+
+import httpx
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 
 from . import decision_log, escalation_rules, request_context, session_store
@@ -26,6 +29,27 @@ from .tools.manychat_tools import escalar_impl, notificar_pago_impl
 from .transcribe import transcribir
 
 app = FastAPI(title="Agente Vendedor WhatsApp — ITERA")
+
+_TIPOS_IMG = ("image/jpeg", "image/png", "image/gif", "image/webp")
+
+
+def _bloque_imagen(url: str) -> dict:
+    """Convierte la URL de una imagen entrante (ManyChat/WhatsApp) en un bloque para el modelo.
+
+    Baja los bytes del lado del server y los manda como base64: evita que la API de Anthropic
+    tenga que ir por la URL (que puede estar bloqueada por robots.txt, requerir token o expirar).
+    Si la descarga falla, cae a pasar la URL directo (mejor esfuerzo).
+    """
+    try:
+        r = httpx.get(url, timeout=30, follow_redirects=True)
+        r.raise_for_status()
+        media = r.headers.get("content-type", "image/jpeg").split(";")[0].strip().lower()
+        if media not in _TIPOS_IMG:
+            media = "image/jpeg"
+        b64 = base64.standard_b64encode(r.content).decode()
+        return {"type": "image", "source": {"type": "base64", "media_type": media, "data": b64}}
+    except (httpx.HTTPError, ValueError):
+        return {"type": "image", "source": {"type": "url", "url": url}}
 
 
 @app.get("/health")
@@ -157,9 +181,7 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
     if texto:
         contenido.append({"type": "text", "text": texto})
     if image_url:
-        contenido.append(
-            {"type": "image", "source": {"type": "url", "url": image_url}}
-        )
+        contenido.append(_bloque_imagen(image_url))
     if not contenido:
         contenido.append({"type": "text", "text": "(el cliente envio un mensaje sin texto)"})
 
