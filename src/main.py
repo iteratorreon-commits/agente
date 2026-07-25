@@ -34,6 +34,8 @@ app = FastAPI(title="Agente Vendedor WhatsApp — ITERA")
 
 _TIPOS_IMG = ("image/jpeg", "image/png", "image/gif", "image/webp")
 _URL_SOLA = re.compile(r"^https?://\S+$")
+# La URL puede venir en cualquier parte del texto, con el caption antes o despues.
+_URL_EN_TEXTO = re.compile(r"https?://\S+")
 # Comando con el que Benny le ENSENA algo al agente por WhatsApp.
 _APRENDE_RE = re.compile(
     r"^\s*(?:aprende|aprender|aprendizaje|nota|recuerda)\s*[:\-]\s*(.+)$",
@@ -44,6 +46,22 @@ _APRENDE_RE = re.compile(
 def _es_url_sola(texto: str) -> bool:
     """True si el texto es UNA sola URL (sin nada mas)."""
     return bool(_URL_SOLA.match((texto or "").strip()))
+
+
+def _separar_media(texto: str) -> tuple[str, str]:
+    """Separa una URL de media del resto del texto. Devuelve (url, caption).
+
+    Antes solo se detectaba la media cuando el texto era EXACTAMENTE una URL, asi que si
+    ManyChat mandaba la foto y su caption juntos ('https://... me interesa en talla 6'),
+    la foto no se detectaba y el modelo recibia la URL cruda como si fuera el mensaje.
+    Ahora la URL se extrae venga donde venga y el caption se conserva.
+    """
+    m = _URL_EN_TEXTO.search(texto or "")
+    if not m:
+        return "", texto or ""
+    # Colapsa el hueco que deja la URL al quitarla ("hola  <url>  cuanto?" -> "hola cuanto?").
+    caption = re.sub(r"\s+", " ", texto[: m.start()] + " " + texto[m.end() :]).strip()
+    return m.group(0), caption
 
 
 def _tipo_media(url: str) -> str:
@@ -216,28 +234,37 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
     # Deja el subscriber_id disponible a las tools que envian media (fotos) al cliente.
     request_context.current_subscriber_id.set(subscriber_id)
 
-    # ManyChat NO expone la imagen como campo aparte: cuando el cliente manda media en
-    # WhatsApp, mete la URL del archivo dentro de 'Ultima entrada de texto' (el campo
-    # 'text'). Si el "texto" es en realidad una sola URL de media, la reenrutamos como
-    # imagen o audio. Es seguro: con texto normal, _es_url_sola es False y no hace nada.
-    if texto and not image_url and not audio_url and _es_url_sola(texto):
-        tipo = _tipo_media(texto)
-        print(f"MEDIA detectada tipo={tipo} url={texto.strip()[:200]}", flush=True)
+    # Cuando el cliente manda media por WhatsApp, ManyChat mete la URL del archivo dentro
+    # de 'Ultima entrada de texto' (el campo 'text'), a veces sola y a veces junto con el
+    # caption. Aqui se separa la URL del caption y cada uno se enruta a donde va: la URL
+    # como imagen/audio, el caption como el mensaje del cliente. Conservar el caption
+    # importa: es el 'por que' le manda la foto ("me interesa este en talla 6").
+    # Con texto normal (sin http) el bloque ni se entra.
+    if texto and not image_url and not audio_url and "http" in texto:
+        url, caption = _separar_media(texto)
+        tipo = _tipo_media(url) if url else ""
+        print(
+            f"MEDIA detectada tipo={tipo} url={url[:160]} caption={caption[:120]!r}",
+            flush=True,
+        )
         if tipo == "image":
-            image_url, texto = texto.strip(), ""
+            # El caption SI se conserva: es el 'por que' me manda la foto.
+            image_url, texto = url, caption
         elif tipo == "audio":
-            audio_url, texto = texto.strip(), ""
-        else:
+            audio_url, texto = url, caption
+        elif tipo:
             # video / archivo / desconocido: el modelo no los procesa. Antes se dejaba la
             # URL cruda como si fuera el mensaje del cliente y el agente intentaba
             # interpretar el link. Se reemplaza por un marcador para que pida una foto o
             # texto. NO es un caso raro: en el bimestre el 5.6% de los mensajes de
             # clientes son video (1,626), diez veces mas que los audios.
-            etiqueta = "un video" if tipo == "video" else "un archivo"
-            texto = (
+            etiqueta = "un video" if tipo == "video" else "un archivo o enlace"
+            nota = (
                 f"[El cliente envio {etiqueta}, que no puedo ver. Pedirle amablemente una "
                 "FOTO del modelito o que escriba lo que necesita.]"
             )
+            # Si venia con caption, se conserva: puede ser todo el pedido.
+            texto = f"{caption} {nota}".strip() if caption else nota
 
     # --- ENSENANZA de Benny (solo el dueno): 'APRENDE: <indicacion>' ---
     # Guarda la indicacion como conocimiento permanente (se inyecta en el prompt de todas
