@@ -18,9 +18,29 @@ _PAGO = re.compile(
     re.IGNORECASE,
 )
 # Palabras de queja/garantia/devolucion.
+# Los patrones nuevos salen de quejas REALES del bimestre (extracto 2026-07-25) que la
+# version anterior dejaba pasar: "no me llegó el de disfraces" (el 'me' rompia \bno lleg),
+# "llegó manchado", "faltó una pieza", "le hace falta una talla 4".
+# Criterio: se prioriza PRECISION sobre recall. Un falso positivo corta la venta con una
+# disculpa fuera de lugar, y el modelo ya tiene la regla 5 de escalar quejas como segunda
+# linea. Por eso NO se agrega "falta" a secas: "me falta 1 para el envio gratis" es venta,
+# no queja; solo dispara cuando falta una PIEZA/TALLA/MODELO.
 _QUEJA = re.compile(
-    r"\b(garant[ií]a|devoluci[oó]n|reembolso|no\s+lleg[oó]|est[aá]\s+roto|"
-    r"da[nñ]ad|equivocad|incompleto|me\s+falt[oó]|reclamo|queja|mal\s+estado)",
+    r"\b(garant[ií]a|devoluci[oó]n|reembolso|reclamo|queja|"
+    # no llegó / no me llega / todavia no llega / nunca me llegó / sigue sin llegar
+    r"no\s+(me\s+)?lleg|(todav[ií]a|a[uú]n|nunca)\s+(no\s+)?(me\s+)?lleg|sigue\s+sin\s+lleg|"
+    # estado del producto
+    r"est[aá]\s+rot|lleg[oó]\s+rot|manchad|descos|desgarrad|defectuos|defecto|"
+    r"da[nñ]ad|equivocad|incompleto|mal\s+estado|"
+    # pedido incorrecto
+    r"no\s+es\s+lo\s+que\s+ped|me\s+(mandaron|enviaron)\s+otr|no\s+coincide|"
+    r"mal\s+(la\s+gu[ií]a|el\s+pedido|la\s+direcci[oó]n|la\s+orden)|"
+    # paqueteria
+    r"extraviad|paquete\s+perdid|"
+    # faltantes: SOLO con la pieza de por medio, para no chocar con el envio gratis
+    r"(me\s+)?falt[oó]\s+(una?\s+|\d+\s+)?(pz|pieza|prenda|modelo|talla|blusa|falda|vestido)|"
+    r"hace\s+falta\s+(una?\s+|\d+\s+)?(pz|pieza|prenda|modelo|talla)"
+    r")",
     re.IGNORECASE,
 )
 
