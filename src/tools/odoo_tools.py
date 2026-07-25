@@ -58,6 +58,87 @@ def _umbral_envio_gratis() -> float:
         return 4000.0
 
 
+def _resolver_variantes(lineas: list[dict]) -> tuple[list, list]:
+    """Resuelve cada linea {template_id, talla, color, cantidad} a su VARIANTE exacta y
+    verifica existencia real (free_qty = disponible, ya sin lo reservado).
+
+    Devuelve (order_lines, faltantes):
+    - order_lines: tuplas (0,0,{product_id, product_uom_qty}) UNA por variante, con SOLO lo
+      que se puede completar (capado a lo disponible). Nunca sobre-promete stock.
+    - faltantes: lista de lo que no se pudo cubrir, para que el agente ofrezca alternativas:
+      {template_id, talla, color, pedido, disponible, faltan} o {..., motivo}.
+    """
+    tmpl_ids = sorted({int(it["template_id"]) for it in lineas if it.get("template_id")})
+    if not tmpl_ids:
+        return [], []
+    variantes = odoo.search_read(
+        "product.product",
+        [["product_tmpl_id", "in", tmpl_ids], ["active", "=", True]],
+        fields=["id", "product_tmpl_id", "product_template_attribute_value_ids", "free_qty"],
+        limit=2000,
+    )
+    ptav_ids = sorted({i for v in variantes for i in (v.get("product_template_attribute_value_ids") or [])})
+    nombre: dict[int, tuple[str, str]] = {}
+    if ptav_ids:
+        for a in odoo.search_read(
+            "product.template.attribute.value",
+            [["id", "in", ptav_ids]],
+            fields=["id", "name", "attribute_id"],
+            limit=5000,
+        ):
+            atype = (a["attribute_id"][1] if a.get("attribute_id") else "").upper()
+            nombre[a["id"]] = (atype, str(a.get("name") or "").strip().upper())
+
+    por_tmpl: dict[int, list[dict]] = {}
+    for v in variantes:
+        tmpl = v["product_tmpl_id"][0] if v.get("product_tmpl_id") else None
+        talla = color = ""
+        for i in v.get("product_template_attribute_value_ids") or []:
+            atype, val = nombre.get(i, ("", ""))
+            if "TALLA" in atype:
+                talla = val
+            elif "COLOR" in atype:
+                color = val
+        por_tmpl.setdefault(tmpl, []).append(
+            {"variant_id": v["id"], "free": int(v.get("free_qty") or 0), "talla": talla, "color": color}
+        )
+
+    order_lines: list = []
+    faltantes: list = []
+    for it in lineas:
+        tmpl = int(it.get("template_id") or 0)
+        cant = int(it.get("cantidad") or 0)
+        talla = str(it.get("talla") or "").strip().upper()
+        color = str(it.get("color") or "").strip().upper()
+        if not tmpl or cant <= 0:
+            continue
+        vlist = por_tmpl.get(tmpl, [])
+        if not vlist:
+            faltantes.append({"template_id": tmpl, "talla": talla, "color": color, "pedido": cant, "motivo": "sin_variantes"})
+            continue
+        cand = None
+        if talla or color:
+            for info in vlist:
+                if (not talla or info["talla"] == talla) and (not color or info["color"] == color):
+                    cand = info
+                    break
+        elif len(vlist) == 1:
+            cand = vlist[0]
+        if cand is None:
+            faltantes.append({"template_id": tmpl, "talla": talla, "color": color, "pedido": cant, "motivo": "variante_no_existe"})
+            continue
+        disp = max(cand["free"], 0)
+        surtir = min(cant, disp)
+        if surtir < cant:
+            faltantes.append({
+                "template_id": tmpl, "talla": cand["talla"] or talla, "color": cand["color"] or color,
+                "pedido": cant, "disponible": disp, "faltan": cant - disp,
+            })
+        if surtir > 0:
+            order_lines.append((0, 0, {"product_id": cand["variant_id"], "product_uom_qty": surtir}))
+    return order_lines, faltantes
+
+
 def _norm(v: Any) -> Any:
     """Odoo devuelve False para vacios; lo convierte a '' para texto."""
     return "" if v is False else v
@@ -339,12 +420,19 @@ def crear_cotizacion(
     Args:
         cliente_nombre: Nombre del cliente.
         cliente_telefono: Telefono del cliente (se usa para buscar/crear el contacto).
-        lineas: Lista de items, cada uno {"template_id": int, "cantidad": int}.
+        lineas: UNA entrada por variante (talla+color): cada una
+            {"template_id": int, "talla": str, "color": str, "cantidad": int}. Ej. si el
+            cliente quiere 2 por talla en 2 colores, manda una linea por cada talla+color
+            (NO agrupes todo en una). 'talla'/'color' pueden ir vacios si el producto no
+            tiene esa dimension (ej. un accesorio de una sola variante).
         costo_envio: Costo del envio (de cotizar_envio) a agregar como linea. 0 = sin envio aun.
         notas: Notas internas opcionales para la cotizacion.
     """
     if not lineas:
         return "ERROR_ARGUMENTOS: la cotizacion no tiene lineas. Confirma el pedido primero."
+    import json
+
+    faltantes: list = []
     try:
         # Buscar o crear el contacto por telefono.
         partners = odoo.search_read(
@@ -361,25 +449,15 @@ def crear_cotizacion(
                 {"name": cliente_nombre or "Cliente WhatsApp", "phone": cliente_telefono},
             )
 
-        # Resolver una variante por template (la primera activa).
-        order_lines = []
-        for item in lineas:
-            tmpl = item.get("template_id")
-            cant = int(item.get("cantidad") or 0)
-            if not tmpl or cant <= 0:
-                continue
-            var = odoo.search_read(
-                "product.product",
-                [["product_tmpl_id", "=", tmpl], ["active", "=", True]],
-                fields=["id"],
-                limit=1,
-            )
-            if not var:
-                return f"ERROR_PRODUCTO: template {tmpl} sin variante activa; no cotizo a ciegas."
-            order_lines.append((0, 0, {"product_id": var[0]["id"], "product_uom_qty": cant}))
-
+        # Resolver la VARIANTE exacta (talla+color) de cada linea y verificar existencia
+        # real por variante (no sobre-promete): una linea por variante, capada a lo disponible.
+        order_lines, faltantes = _resolver_variantes(lineas)
         if not order_lines:
-            return "ERROR_ARGUMENTOS: ninguna linea valida. Revisa template_id y cantidad."
+            return (
+                "SIN_STOCK_COMPLETABLE: ninguna de las variantes pedidas tiene existencia "
+                "para completar. NO inventes; ofrece alternativas (otra talla/color/modelo) "
+                "o escala. Detalle faltantes=" + json.dumps(faltantes, ensure_ascii=False)
+            )
 
         values: dict[str, Any] = {
             "partner_id": partner_id,
@@ -449,8 +527,6 @@ def crear_cotizacion(
     if imagen_url and sid:
         imagen_enviada = bool(enviar_mensaje(sid, "", imagen_url=imagen_url).get("ok"))
 
-    import json
-
     return json.dumps(
         {
             "numero_orden": nombre,
@@ -458,15 +534,20 @@ def crear_cotizacion(
             "total": total,
             "envio_gratis": envio_gratis,
             "costo_envio_aplicado": envio_aplicado,
+            "faltantes": faltantes,
             "pdf_url": pdf_url,
             "imagen_cotizacion_url": imagen_url,
             "imagen_enviada": imagen_enviada,
             "estado": "borrador (no confirmado, no aparta piezas hasta el pago)",
             "_instruccion_cotizacion": (
-                "El 'total' YA incluye el envio (o es gratis). Sobre el envio: si "
-                "envio_gratis=true, dile al cliente que su envio es GRATIS por superar los "
-                "$4,000 🤩; si costo_envio_aplicado>0, dile que su envio (${costo_envio_aplicado}) "
-                "ya viene incluido en su total. "
+                "La cotizacion se armo con UNA linea por variante (talla+color) y SOLO con lo "
+                "que hay en existencia. Si 'faltantes' NO esta vacio, dile con claridad al "
+                "cliente que de esas tallas/colores solo se pudo completar lo disponible "
+                "(ej. 'de la talla 8 en negro solo pudimos completar 3') y ofrece completar "
+                "las que faltan en OTRA talla/color o modelo parecido (nunca solo 'no hay'). "
+                "El 'total' YA incluye el envio (o es gratis): si envio_gratis=true, dile que "
+                "su envio es GRATIS por superar los $4,000 🤩; si costo_envio_aplicado>0, que su "
+                "envio (${costo_envio_aplicado}) ya viene incluido en el total. "
                 "Si imagen_enviada=true, YA se le mando al cliente su cotizacion como FOTO: "
                 "confirmaselo (ej. 'Le envie su cotizacion <numero_orden> por $<total> 📸'). "
                 "Ademas comparte pdf_url como link por si quiere descargar el PDF. "
