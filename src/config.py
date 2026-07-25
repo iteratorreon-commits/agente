@@ -77,6 +77,17 @@ class Config:
         )
     )
 
+    # Telegram (canal INTERNO: escalaciones y avisos de pago a Benny/finanzas).
+    # Reemplaza a WhatsApp para lo interno; si falta el token, el codigo cae a WhatsApp
+    # para no perder escalaciones durante el despliegue.
+    telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    telegram_chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    telegram_notify_chat_ids: list[str] = field(
+        default_factory=lambda: _split_ids(os.getenv("TELEGRAM_NOTIFY_CHAT_IDS"))
+    )
+    # Se manda en el header X-Telegram-Bot-Api-Secret-Token al registrar el webhook.
+    telegram_webhook_secret: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+
     # ManyChat
     manychat_token: str = os.getenv("MANYCHAT_API_TOKEN", "")
     webhook_secret: str = os.getenv("WEBHOOK_SECRET", "")

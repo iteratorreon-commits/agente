@@ -1,7 +1,11 @@
-"""Tools de comunicacion 1:1 via ManyChat: escalar a Benny y notificar pagos.
+"""Tools de comunicacion interna: escalar a Benny y notificar pagos.
 
-WhatsApp/ManyChat NO permite que un bot escriba en grupos, por eso el 'grupo de
-pagos' se simula notificando 1:1 a varias personas (Benny + finanzas) por separado.
+Van por TELEGRAM, no por WhatsApp. Razon principal: WhatsApp/Meta solo deja enviar
+dentro de la ventana de 24h desde el ultimo mensaje del destinatario, asi que una
+escalacion podia perderse en silencio justo cuando mas se necesitaba. Ver telegram_api.
+
+Si Telegram no esta configurado (falta el token), se cae de vuelta a WhatsApp para no
+quedarse sin canal durante el despliegue.
 
 La logica vive en funciones planas (escalar_impl / notificar_pago_impl) para que el
 gate determinista del webhook las llame directo, y en wrappers @beta_tool para el agente.
@@ -14,28 +18,47 @@ from anthropic import beta_tool
 
 from ..config import cfg
 from ..manychat_api import enviar_mensaje
+from ..request_context import current_subscriber_id
+from ..telegram_api import configurado as telegram_listo
+from ..telegram_api import difundir, enviar_telegram
+
+_TIP = '💡 Responde con "APRENDE: <la regla>" y lo guardo para no volver a preguntarte.'
+
+
+def _quien_pregunta() -> str:
+    """Identifica al cliente del turno en curso.
+
+    El Tool Runner no le pasa el subscriber_id a las tools, asi que sale del ContextVar
+    que _procesar setea. Sin esto la escalacion decia 'un cliente pregunta X' y no habia
+    forma de saber a quien contestarle.
+    """
+    sid = current_subscriber_id.get()
+    return f"Cliente {sid}" if sid else "Cliente (sin identificar)"
 
 
 def escalar_impl(motivo: str, contexto: str, urgente: bool = False) -> dict:
-    """Envia una escalacion 1:1 a Benny. Devuelve {'escalado': bool, 'detalle': str}."""
+    """Escala a Benny por Telegram. Devuelve {'escalado': bool, 'detalle': str}."""
     prefijo = "🚨 URGENTE" if urgente else "🔔 Consulta del agente vendedor"
-    texto = (
-        f"{prefijo}\n\nMotivo: {motivo}\n\nContexto: {contexto}\n\n"
-        '💡 Tip: responde con "APRENDE: <la regla>" y lo guardo para no volver a preguntarte.'
-    )
-    res = enviar_mensaje(cfg.benny_subscriber_id, texto)
+    texto = f"{prefijo}\n\n{_quien_pregunta()}\n\nMotivo: {motivo}\n\nContexto: {contexto}\n\n{_TIP}"
+    if telegram_listo():
+        res = enviar_telegram(texto)
+    else:
+        res = enviar_mensaje(cfg.benny_subscriber_id, texto)
     return {"escalado": res["ok"], "detalle": res["detalle"]}
 
 
 def notificar_pago_impl(mensaje: str, comprobante_url: str = "") -> dict:
-    """Notifica 1:1 a Benny + finanzas un posible pago. Devuelve {'enviados','fallidos','total'}."""
+    """Avisa a Benny + finanzas de un posible pago. Devuelve {'enviados','fallidos','total'}."""
+    texto = f"💰 Posible pago por confirmar\n\n{mensaje}"
+    if telegram_listo():
+        return difundir(texto, imagen_url=comprobante_url)
+
+    # Respaldo por WhatsApp mientras Telegram no este configurado.
     destinatarios = list(cfg.notify_subscriber_ids)
     if cfg.benny_subscriber_id and cfg.benny_subscriber_id not in destinatarios:
         destinatarios.append(cfg.benny_subscriber_id)
     if not destinatarios:
         return {"enviados": [], "fallidos": [], "total": 0, "detalle": "sin destinatarios"}
-
-    texto = f"💰 Posible pago por confirmar\n\n{mensaje}"
     enviados, fallidos = [], []
     for sid in destinatarios:
         res = enviar_mensaje(sid, texto, imagen_url=comprobante_url or None)
@@ -45,7 +68,7 @@ def notificar_pago_impl(mensaje: str, comprobante_url: str = "") -> dict:
 
 @beta_tool
 def escalar_a_benny(motivo: str, contexto: str, urgente: bool = False) -> str:
-    """Escala una duda o situacion a Benny (dueno) por WhatsApp 1:1 cuando el agente no sabe algo.
+    """Escala una duda o situacion a Benny (dueno) cuando el agente no sabe algo.
 
     Usala SIEMPRE que: no tengas evidencia en el playbook/politicas ni en una tool para
     responder con certeza; el cliente pida algo fuera de catalogo o una politica no confirmada;

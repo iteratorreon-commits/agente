@@ -42,6 +42,16 @@ services:
       # Anthropic (¡recargar saldo!)
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Telegram — canal INTERNO (escalaciones y avisos de pago). Reemplaza a WhatsApp
+      # para lo interno; sin el token, el codigo cae a WhatsApp y no se pierde nada.
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: TELEGRAM_NOTIFY_CHAT_IDS
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
       # Odoo
       - key: ODOO_URL
         sync: false

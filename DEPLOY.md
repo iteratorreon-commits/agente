@@ -104,6 +104,38 @@ Con `AGENTE_SHADOW_MODE=1`, el cliente **no recibe nada**; el agente sí procesa
 Cambia `AGENTE_SHADOW_MODE` a `0` en Environment → **Save** (redeploy automático). A partir
 de ahí el agente ya le responde a los clientes reales.
 
+## Paso 8 — Canal interno por Telegram (escalaciones y avisos de pago)
+
+Reemplaza a WhatsApp para lo interno. **Por qué:** WhatsApp/Meta solo deja enviar dentro de
+la ventana de 24 h desde el último mensaje del destinatario, así que una escalación de
+madrugada se perdía en silencio justo cuando más se necesitaba. Telegram no tiene esa
+ventana, y además separa el canal interno del de clientes.
+
+Orden (importa, porque el bot te dice tu `chat_id` pero necesita el webhook vivo):
+
+1. En Telegram, habla con **@BotFather** → `/newbot` → nombre → usuario. Copia el **token**.
+2. En Render → Environment, pon `TELEGRAM_BOT_TOKEN` y `TELEGRAM_WEBHOOK_SECRET`
+   (cualquier cadena larga que inventes). **Save** → redeploy.
+3. Registra el webhook abriendo esta URL en el navegador (sustituye TOKEN y SECRET):
+   ```
+   https://api.telegram.org/botTOKEN/setWebhook?url=https://agente-vendedor-wa.onrender.com/telegram/inbound&secret_token=SECRET
+   ```
+   Debe contestar `{"ok":true,...}`.
+4. Escríbele **`/start`** a tu bot. Te responde con tu `chat_id`.
+5. Pon ese número en `TELEGRAM_CHAT_ID` (y los de finanzas en `TELEGRAM_NOTIFY_CHAT_IDS`,
+   separados por coma). **Save** → redeploy.
+
+Listo: las escalaciones y los avisos de pago llegan a Telegram, y ahí mismo puedes mandar
+`APRENDE: <la regla>`.
+
+**Qué NO hace este canal, a propósito:** no corre el agente vendedor. Solo acepta `APRENDE:`
+y responde el `chat_id`. Así un mensaje tuyo nunca se confunde con una conversación de venta
+—que es justo lo que pasaba en WhatsApp— y no hay riesgo de contestarle al cliente
+equivocado. Para responderle a un cliente, sigue siendo por WhatsApp.
+
+**Si falta el token, no se pierde nada:** el código detecta que Telegram no está configurado
+y manda las escalaciones por WhatsApp como antes.
+
 ---
 
 ### Notas / límites conocidos
@@ -117,5 +149,5 @@ de ahí el agente ya le responde a los clientes reales.
 - El prompt caching cachea las 8 tools + el system prompt (~4k tokens) en un solo
   breakpoint. Se invalida cuando Benny manda un `APRENDE:` y se vuelve a calentar solo.
   Si `cache_read` sale 0 turno tras turno en la bitácora, algo rompió el prefijo.
-- El gate de quejas hoy no atrapa frases como "está mal la guía" (solo equivocad/garantía/
-  devolución/…): ampliar patrones en `src/escalation_rules.py` si se quiere más cobertura.
+- Las escalaciones y avisos de pago van por **Telegram** (ver Paso 8). Si el token falta,
+  caen a WhatsApp, donde están sujetas a la ventana de 24 h de Meta y pueden perderse.

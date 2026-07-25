@@ -26,6 +26,7 @@ from . import aprendizajes, decision_log, escalation_rules, request_context, ses
 from .agent import responder
 from .config import cfg
 from .manychat_api import enviar_mensaje
+from .telegram_api import enviar_telegram
 from .tools.manychat_tools import escalar_impl, notificar_pago_impl
 from .transcribe import transcribir
 
@@ -132,6 +133,68 @@ async def inbound(
     # la respuesta real se le entrega al cliente por la Sending API (ver _procesar).
     background_tasks.add_task(_procesar, subscriber_id, texto, image_url, audio_url)
     return {"status": "accepted"}
+
+
+@app.post("/telegram/inbound")
+async def telegram_inbound(request: Request) -> dict:
+    """Canal INTERNO. Solo acepta 'APRENDE:' y devuelve el chat_id; NO corre el agente.
+
+    Deliberadamente no procesa nada mas: este canal es para que Benny ensene reglas y
+    reciba escalaciones, no para conversar. Asi un mensaje suyo nunca se confunde con
+    una conversacion de venta (que es justo lo que pasaba en WhatsApp).
+    """
+    if cfg.telegram_webhook_secret:
+        if request.headers.get("x-telegram-bot-api-secret-token") != cfg.telegram_webhook_secret:
+            raise HTTPException(status_code=401, detail="secret invalido")
+
+    update = await request.json()
+    msg = update.get("message") or update.get("edited_message") or {}
+    chat_id = str((msg.get("chat") or {}).get("id") or "")
+    texto = (msg.get("text") or "").strip()
+    if not chat_id:
+        return {"status": "ignorado"}
+
+    # /start y /id: para que Benny descubra su chat_id sin salir de Telegram.
+    if texto.lower() in {"/start", "/id"}:
+        enviar_telegram(
+            f"Canal interno del agente vendedor ITERA 🤖\n\n"
+            f"Tu chat_id es: {chat_id}\n\n"
+            f"Ponlo en TELEGRAM_CHAT_ID (Benny) o en TELEGRAM_NOTIFY_CHAT_IDS (finanzas).\n\n"
+            f'Aqui te llegan las escalaciones y los avisos de pago. Para ensenarme una '
+            f'regla: "APRENDE: <la regla>".',
+            chat_id=chat_id,
+        )
+        return {"status": "ok"}
+
+    # Solo los chats internos pueden ensenar. Un desconocido no toca el conocimiento.
+    from .telegram_api import destinatarios as _internos_tg
+
+    if chat_id not in _internos_tg():
+        enviar_telegram("Este canal es interno del equipo ITERA.", chat_id=chat_id)
+        decision_log.registrar(
+            f"tg:{chat_id}", texto, accion="error", error="chat de Telegram no autorizado"
+        )
+        return {"status": "no autorizado"}
+
+    m = _APRENDE_RE.match(texto)
+    if m:
+        entrada = aprendizajes.agregar(m.group(1).strip(), autor="Benny")
+        enviar_telegram(
+            f'✅ Aprendido y guardado:\n"{entrada["texto"]}"\n\nLo aplicare de aqui en adelante.',
+            chat_id=chat_id,
+        )
+        decision_log.registrar(
+            f"tg:{chat_id}", texto, accion="aprendizaje", respuesta=entrada["texto"], entrega="ok"
+        )
+        return {"status": "ok"}
+
+    enviar_telegram(
+        "Este canal recibe escalaciones y avisos de pago, y acepta reglas nuevas.\n\n"
+        'Para ensenarme algo: "APRENDE: <la regla>".\n'
+        "Para contestarle a un cliente, hazlo por WhatsApp.",
+        chat_id=chat_id,
+    )
+    return {"status": "ok"}
 
 
 def _entrega(res: dict) -> str:
