@@ -30,9 +30,11 @@ services:
       - key: AGENTE_SHADOW_MODE
         value: "1"           # ARRANCA EN MODO SOMBRA. Cambiar a "0" cuando quieras que conteste a clientes.
       - key: AGENTE_MODEL
-        value: claude-opus-4-8
+        value: claude-sonnet-5
       - key: AGENTE_EFFORT
         value: medium
+      - key: AGENTE_MAX_TOKENS
+        value: "4096"        # thinking + texto juntos. No bajar: adaptive thinking esta encendido.
 
       # --- Secretos y config del negocio: cargar en el dashboard (Environment) ---
       # Anthropic (¡recargar saldo!)

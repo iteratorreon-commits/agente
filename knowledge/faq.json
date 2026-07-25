@@ -1,0 +1,262 @@
+{
+  "_meta": {
+    "descripcion": "Preguntas frecuentes REALES de los clientes, ordenadas por cuantas veces se preguntaron en el bimestre 26-may a 25-jul 2026 (46,853 mensajes / 2,096 pares pregunta-respuesta). Las respuestas estan redactadas a partir de lo que contestan los vendedores humanos y NO contradicen politicas.json: si hay conflicto, manda politicas.json. 'veces' es el conteo del clustering del extractor, es un orden de magnitud, no un censo exacto.",
+    "ultima_actualizacion": "2026-07-25",
+    "fuente": "ODOO/conocimiento-ventas/extracto-2026-07-25-60d/",
+    "regla": "Estas respuestas son para preguntas de INFORMACION. Cualquier dato de catalogo, precio o stock sale de Odoo en vivo, nunca de aqui."
+  },
+  "faq": [
+    {
+      "id": "faq-catalogo-01",
+      "tema": "catalogos",
+      "pregunta": "¿Me mandas el catálogo?",
+      "respuesta": "¡Claro que sí! Le comparto nuestros catálogos 🙌🏻 Manejamos PATRIO PREVENTA, ACCESORIOS, ROPA CASUAL, VESTIDOS y DISFRAZ MAYOREO. ¿Cuál le gustaría ver? Nuestros precios de mayoreo se aplican a partir de las 6 piezas, usted puede combinar modelos y tallas como prefiera, o puede pedir surtido 😉",
+      "veces": 42,
+      "fuente": {"vendedor": "Luis Garcia / Miranda Huerta", "conv_id": "23048, 22993, 23082", "cita": "PATRIO PREVENTA 💚🤍❤️ Claro, se lo envío También tenemos algunos accesorios, por si le interesa ACCESORIOS 💚🤍❤️"}
+    },
+    {
+      "id": "faq-envio-01",
+      "tema": "envios",
+      "pregunta": "¿Cuánto cuesta el envío?",
+      "respuesta": "Con gusto se lo cotizo 🙌🏻 ¿Me comparte su código postal, por favor? Le comento que si su pedido supera los $4,000 el envío corre por nuestra cuenta 🤩",
+      "veces": 24,
+      "fuente": {"vendedor": "Miranda Huerta", "conv_id": "23080, 13195, 22728", "cita": "¿Cuál es su código postal? Para cotizárselo"}
+    },
+    {
+      "id": "faq-pago-01",
+      "tema": "pagos",
+      "pregunta": "¿Cuáles son sus formas de pago? / ¿A qué cuenta deposito?",
+      "respuesta": "Manejamos 3 formas de pago 😁 Depósito en Oxxo (código Spin); cuenta BBVA para depósito en ventanilla, cajero automático o transferencia; y tarjeta de crédito mediante un link de Mercado Pago 😊 ¿Cuál se le facilita más?",
+      "veces": 38,
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "23336, 22693", "cita": "Manejamos 3 formas de pago 😁, Deposito en Oxxo, de igual manera contamos con una cuenta de BBVA en la que se pueden realizar depósitos en ventanilla, cajero automático y por transferencia y por ultimo también se puede realizar el pago con tarjeta de crédito, es mediante un link de mercado pago 😊"}
+    },
+    {
+      "id": "faq-mayoreo-01",
+      "tema": "mayoreo",
+      "pregunta": "¿A partir de cuántas piezas es mayoreo? / ¿Cuál es el mínimo de compra?",
+      "respuesta": "Nuestros precios de mayoreo se aplican a partir de las 6 piezas, usted puede combinar modelos y tallas como prefiera, o puede pedir surtido 😉 En accesorios el mayoreo aplica desde 40 piezas.",
+      "veces": 18,
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "23156, 23120, 22907", "cita": "Nuestros precios de mayoreo se aplican a partir de las 6 piezas, usted puede combinar modelos y tallas como prefiera, o puede pedir surtido 😉"}
+    },
+    {
+      "id": "faq-tallas-01",
+      "tema": "tallas",
+      "pregunta": "¿A qué edad equivale la talla CH, M, G? / ¿Qué tallas manejan?",
+      "respuesta": "Guía de tallas 🥰\nChica: 4-5 años\nMediana: 6-8 años\nGrande: 10-12 años\nExtra Grande: 13-14 años\n\nEn tallas numéricas manejamos infantil de la 2 a la 12, solo tallas pares 😊",
+      "veces": 14,
+      "fuente": {"vendedor": "Miranda Huerta / Luis Garcia", "conv_id": "18630, 22537, 22762, 23181, 23310, 23390", "cita": "Guía de tallas 🥰 Chica: 4-5 años Mediana: 6-8 años Grande: 10-12 años Extra Grande: 13-14 años"}
+    },
+    {
+      "id": "faq-empresa-01",
+      "tema": "empresa",
+      "pregunta": "¿Dónde están ubicados? / ¿Tienen tienda física?",
+      "respuesta": "Estamos en Torreón, Coahuila 😉 Nuestra tienda de menudeo está en Av. Juárez 1352, Colonia Centro: https://maps.app.goo.gl/X9U31TeX2Z3J7PoQ9 y los pedidos de mayoreo salen de nuestro almacén de Acuña. Realizamos envíos a todo México 🙌🏻",
+      "veces": 20,
+      "fuente": {"vendedor": "Juan Francisco Trujillo / Miranda Huerta", "conv_id": "22939, 22691, 22946, 23302", "cita": "Estamos ubicados en Av. Juárez 1352, Colonia Centro, en Torreón Coahuila: https://maps.app.goo.gl/X9U31TeX2Z3J7PoQ9 😉"}
+    },
+    {
+      "id": "faq-empresa-02",
+      "tema": "empresa",
+      "pregunta": "¿Cuál es su horario? / ¿A qué hora abren o cierran? / ¿Atienden los fines de semana?",
+      "respuesta": "Nuestro horario de atención es de 10:00 am a 7:00 pm de lunes a sábado, y los domingos de 10:00 am a 4:00 pm 🙌🏻 Abrimos todos los días 😊",
+      "veces": 6,
+      "fuente": {"vendedor": "Benny", "conv_id": "correccion 2026-07-25", "cita": "Abrimos todo el fin de semana, solo el domingo estamos de 10 a 4."},
+      "nota_interna": "OJO: la tienda abre fin de semana pero las PAQUETERIAS no laboran sabado ni domingo. Un pedido pagado en fin de semana se atiende igual, pero sale el lunes. No confundir horario de atencion con dias de envio."
+    },
+    {
+      "id": "faq-envio-02",
+      "tema": "envios",
+      "pregunta": "¿Cuánto tarda en llegar el pedido? / ¿Cuánto tarda el envío? / ¿En cuántos días llega?",
+      "respuesta": "*Información de Envío* 🚚 Trabajamos con paqueterías rápidas y confiables como FedEx, DHL, Estafeta y Paquetexpress. El lapso de entrega para el envío Estándar es de 5 días hábiles, y de 1 a 2 días hábiles para el envío Express 👌\nNOTA‼️ Si su destino está en zona extendida los tiempos pueden aumentar unos días. Si quiere mejorar los tiempos, le recomendamos la entrega en el centro de distribución más cercano a su zona.\n¿Me comparte su código postal para cotizarle? 🙌🏻",
+      "veces": 11,
+      "fuente": {"vendedor": "Miranda Huerta / Luis Garcia", "conv_id": "22923, 23039", "cita": "El lapso de entrega para el envío Estándar es de 5 días hábiles, y de 1 a 2 días hábiles para el envío Express👌"}
+    },
+    {
+      "id": "faq-envio-03",
+      "tema": "envios",
+      "pregunta": "¿Cuánto tengo que comprar para que el envío sea gratis?",
+      "respuesta": "Su pedido debe superar los $4,000 para que nosotros cubramos el costo de envío 🤩 Si gusta le agrego unas piezas más para que alcance y su envío salga totalmente gratis 😉",
+      "veces": 9,
+      "fuente": {"vendedor": "Luis Garcia", "conv_id": "10001, 18738", "cita": "Su pedido debe ser mayor a $4000 para que podamos cubrirle su costo de envio 👀"}
+    },
+    {
+      "id": "faq-garantia-01",
+      "tema": "garantia",
+      "pregunta": "¿Hacen cambios o devoluciones si no se vende la mercancía?",
+      "respuesta": "*Nuestra política de garantía en ITERA* 💛 Si los productos no se venden dentro de los 15 días siguientes a la llegada de su paquete, usted puede devolverlos.\nPROCESO ✔️\n1. Usted envía los productos de regreso a ITERA.\n2. Una vez recibidos le proporcionamos un saldo a su favor.\n3. Se realiza su nuevo pedido.\nNota: El envío de regreso y el de la nueva mercancía es por su cuenta. Si el nuevo pedido suma $4,000 o más, el envío de la nueva mercancía será gratuito 🤑",
+      "veces": 5,
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "22693, 9220", "cita": "*Nuestra política de garantía en ITERA* 💛 Si los productos no se venden dentro de 15 días siguientes a la llegada de su paquete usted puede devolverlos."}
+    },
+    {
+      "id": "faq-cotiza-01",
+      "tema": "cotizacion",
+      "pregunta": "¿Cuánto dura mi cotización? / ¿Me apartan las piezas?",
+      "respuesta": "Su cotización es válida por 24hrs únicamente. Durante ese tiempo sus piezas quedan apartadas; pasadas las 24hrs la cotización se cancela y las piezas se liberan para otro cliente 😉",
+      "veces": 8,
+      "fuente": {"vendedor": "Benny", "conv_id": "decision D-3", "cita": "Las piezas se apartan 24 mientras esta vigente su cotizacion, pasadas las 24 horas se cancela la cotizacion y se liberan para otro cliente."}
+    },
+    {
+      "id": "faq-factura-01",
+      "tema": "facturacion",
+      "pregunta": "¿Facturan?",
+      "respuesta": "Sí señorita, se agrega el 16% de IVA 😊 Para su factura necesitaríamos su constancia de situación fiscal y su uso de CFDI. ¿Le agrego el IVA o lo dejamos sin factura?",
+      "veces": 6,
+      "fuente": {"vendedor": "Miranda Huerta / Luis Garcia", "conv_id": "23376, 19135, 9008", "cita": "Sí, agregando el 16% de IVA, está bien o sin factura? 😊"}
+    },
+    {
+      "id": "faq-dinamica-01",
+      "tema": "proceso",
+      "pregunta": "¿Cómo es la dinámica de compra? / ¿Cómo le hago para pedir?",
+      "respuesta": "Nuestra *dinámica de compra* consiste en:\n1️⃣ Enviarle el catálogo.\n2️⃣ Una vez que usted elija, indicarnos los modelos y tallas de su elección.\n3️⃣ Checamos existencias y realizamos su cotización.\n4️⃣ Una vez que esté de acuerdo, se le envía la cuenta de pago.\n5️⃣ Después de realizar su pago y enviarnos el comprobante, se le piden sus datos para el envío 🙌🏻",
+      "veces": 10,
+      "fuente": {"vendedor": "Miranda Huerta", "conv_id": "23296, 18632, 22499", "cita": "Nuestra *dinámica de compra* consiste en: 1️⃣-. Enviarle el catálogo. 2️⃣-. Una vez que usted elija lo que desea, indicarnos los modelos y tallas de su elección..."}
+    },
+    {
+      "id": "faq-envio-04",
+      "tema": "envios",
+      "pregunta": "¿Hacen envíos a Estados Unidos?",
+      "respuesta": "Solamente enviamos dentro de México 🥹 pero hacemos envíos a toda la república sin problema 😊",
+      "veces": 2,
+      "fuente": {"vendedor": "Miranda Huerta", "conv_id": "22773, 23178", "cita": "Solamente enviamos dentro de México señorita 🥹"}
+    },
+    {
+      "id": "faq-envio-05",
+      "tema": "envios",
+      "pregunta": "¿Pueden enviarlo por Correos de México?",
+      "respuesta": "Solo manejamos paquetería FedEx, Estafeta, DHL y Paquetexpress 😅 ¿Alguna de esas le funciona?",
+      "veces": 2,
+      "fuente": {"vendedor": "Luis Garcia", "conv_id": "23075", "cita": "Si solo manejamos paqueteria Fedex, Estafeta y DHL 😅"}
+    },
+    {
+      "id": "faq-envio-06",
+      "tema": "envios",
+      "pregunta": "¿Cuándo me mandan mi número de guía?",
+      "respuesta": "En cuanto su pedido esté listo para enviarse se le enviará su número de guía automáticamente 🥰 Le comento que las paqueterías no laboran fines de semana, así que un pedido pagado en fin de semana sale el lunes 🚚",
+      "veces": 12,
+      "fuente": {"vendedor": "Miranda Huerta / Luis Garcia", "conv_id": "22840, 9485, 22889", "cita": "En cuanto su pedido esté listo para enviarse se le enviará su número de guía automáticamente 🥰"}
+    },
+    {
+      "id": "faq-envio-07",
+      "tema": "envios",
+      "pregunta": "¿Cuándo sale mi pedido si ya pagué?",
+      "respuesta": "Una vez confirmada su compra nos tardamos aproximadamente 1 día en recolectar los modelitos y enviarlos 🙌🏻 La paquetería pasa por los paquetes alrededor de las 2:30 pm, así que si se confirma después de esa hora saldría al día siguiente 😊",
+      "veces": 7,
+      "fuente": {"vendedor": "Luis Garcia / Juan Francisco Trujillo", "conv_id": "19327, 22530, 13137", "cita": "Una vez confirmada su compra nos tardamos aproximadamente 1 dia mas en poder recolectar los modelitos y enviarselos 🙌🏻"}
+    },
+    {
+      "id": "faq-precio-01",
+      "tema": "precios",
+      "pregunta": "¿Por qué el precio dice \"desde\"? / ¿Por qué cambió el precio?",
+      "respuesta": "El precio cambia según la talla: a ese precio se manejan solo algunas tallas, por eso ponemos *desde* — en las tallitas más grandes aumenta un poco 😊 En su cotización le aparece el precio exacto de cada talla.",
+      "veces": 4,
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "10130, 13651", "cita": "a ese precio solo se manejan una tallas, por eso ponemos *desde* ya que en tallitas más grandes aumenta el precio"}
+    },
+    {
+      "id": "faq-precio-02",
+      "tema": "precios",
+      "pregunta": "¿Me da mejor precio? / ¿Hay descuento?",
+      "respuesta": "El precio de preventa es el más bajo que manejamos 🥺 La preventa dura unas semanas y de ahí pasamos a precios normales de mayoreo. Déjeme ver cómo le puedo ayudar, permítame verificarlo 🙌🏻",
+      "veces": 6,
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "16057, 23333, 20892", "cita": "El precio de preventa es el más bajo que manejamos señorita 🥺 Sin embargo déjeme ver como le puedo ayudar"}
+    },
+    {
+      "id": "faq-medidas-01",
+      "tema": "tallas",
+      "pregunta": "¿Qué medidas tiene esa talla? / ¿Cuánto mide la prenda?",
+      "respuesta": "Le comparto nuestra guía de tallas 🥰\nChica: 4-5 años\nMediana: 6-8 años\nGrande: 10-12 años\nExtra Grande: 13-14 años\n\nPermítame confirmarle las medidas exactas de ese modelito y enseguida le digo 🙌🏻",
+      "veces": 20,
+      "fuente": {"vendedor": "—", "conv_id": "extracto medidas_tallas (425 pares)", "cita": "Los vendedores contestan con la guia por edad; las medidas en cm por prenda no las tiene nadie."},
+      "nota_interna": "NO HAY medidas en cm por prenda: verificado contra Odoo (solo 7 de 322 productos publicados tienen description_sale, no existe campo de medidas). Dar la guia por edad y ESCALAR con escalar_a_benny para la medida exacta. NUNCA inventar centimetros."
+    },
+    {
+      "id": "faq-tallas-02",
+      "tema": "tallas",
+      "pregunta": "Las tallas de las faldas (70, 80, 90, 100) ¿son de cintura?",
+      "respuesta": "Son centímetros de LARGO señorita 😊 Las faldas tradicionales son unitalla con cordón y lo que varía es el largo. La versión con tallas en números (#4, #6...) equivale a los 40 y 60 cm, y así sucesivamente con cada tallita 😊",
+      "veces": 3,
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "20962, 13329", "cita": "Son la medida de lo largo señorita 😊 De igual manera la otra versión que tenemos con tallas en números como #4 ,#6 etc... equivalen a los 40 y 60 cm"}
+    },
+    {
+      "id": "faq-tallas-03",
+      "tema": "tallas",
+      "pregunta": "¿Qué significan las tallas en rojo del catálogo?",
+      "respuesta": "Las tallitas marcadas en rojo son las que ya se agotaron 👀 Las demás están disponibles, aunque siempre le confirmo existencias al armar su cotización 🙌🏻",
+      "veces": 4,
+      "fuente": {"vendedor": "Luis Garcia", "conv_id": "22487, 23030, 23323", "cita": "Las tallitas marcadas en rojo son tallitas agotadas 👀"}
+    },
+    {
+      "id": "faq-mayoreo-02",
+      "tema": "mayoreo",
+      "pregunta": "¿Puedo pasar a recoger a la tienda?",
+      "respuesta": "¡Claro que sí! Puede hacer su pedido por WhatsApp y pasar a recogerlo en nuestra tienda de Torreón (Av. Juárez 1352) 🤝 Para clientes locales el precio de mayoreo aplica en compras a partir de $3,000 MXN a precio mayorista. Si al recoger ve más modelos que le gusten, se los agregamos respetando el precio de mayoreo ✅",
+      "veces": 4,
+      "fuente": {"vendedor": "Luis Garcia", "conv_id": "18757, 13430", "cita": "El precio de mayoreo para clientes locales aplicará únicamente en compras a partir de $3,000 MXN A PRECIO MAYORISTA."}
+    },
+    {
+      "id": "faq-menudeo-01",
+      "tema": "precios",
+      "pregunta": "Solo quiero 1 o 2 piezas, ¿se puede?",
+      "respuesta": "Sí se puede, solamente que aplicaría precio de menudeo, no de mayoreo 😊 También puede ver todos los modelitos con precios de menudeo en nuestra tienda en línea: https://www.itera.cool/shop 🛒",
+      "veces": 5,
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "22919, 10627", "cita": "Si se podría, solamente que aplicaría como menudeo"}
+    },
+    {
+      "id": "faq-pago-02",
+      "tema": "pagos",
+      "pregunta": "¿La tarjeta que me pasaron sirve para depositar en el banco?",
+      "respuesta": "Ese código Spin sirve únicamente para depósito en Oxxo señorita 😅 Para depósito en banco contamos con nuestra cuenta BBVA, con la que puede depositar en ventanilla, en cajero o por transferencia. ¿Se la comparto? 👀",
+      "veces": 3,
+      "fuente": {"vendedor": "Luis Garcia / Miranda Huerta", "conv_id": "23136, 22807, 13504", "cita": "esa tarjeta solo sirve para puro deposito en oxxo señorita 😅"}
+    },
+    {
+      "id": "faq-pago-03",
+      "tema": "pagos",
+      "pregunta": "¿Es contra entrega?",
+      "respuesta": "No manejamos pago contra entrega 🥺 Contamos con depósito en Oxxo, transferencia o depósito en BBVA, y tarjeta de crédito por link de Mercado Pago. ¿Cuál se le facilita? 😊",
+      "veces": 2,
+      "fuente": {"vendedor": "—", "conv_id": "23440", "cita": "Cliente: 'Pensé que era en contra entrega' — en 239 pares del bimestre nunca se ofreció contra entrega."}
+    },
+    {
+      "id": "faq-material-01",
+      "tema": "producto",
+      "pregunta": "¿De qué tela son?",
+      "respuesta": "La tela varía según el modelito señorita 😊 Manejamos telas como lino algodón y popelina dependiendo de la prenda. Permítame confirmarle la del modelo que le interesa 🙌🏻",
+      "veces": 4,
+      "fuente": {"vendedor": "Luis Garcia", "conv_id": "23437, 14066, 22687", "cita": "Si la tela varia segun el modelito señorita 😅"},
+      "nota_interna": "Solo 3 respuestas concretas en todo el bimestre. Si el cliente insiste por un modelo especifico, ESCALAR."
+    },
+    {
+      "id": "faq-empresa-03",
+      "tema": "empresa",
+      "pregunta": "¿Puedo hacer el pedido por llamada? / ¿Me puede marcar un vendedor?",
+      "respuesta": "¡Claro que sí! Con gusto lo dirijo con un vendedor para atenderlo por llamada, así checamos existencias y armamos su pedido juntos 🙌🏼 ¿A qué hora le queda bien?",
+      "veces": 2,
+      "fuente": {"vendedor": "Benny", "conv_id": "correccion 2026-07-25", "cita": "Siempre se puede dirigir a un vendedor para tomar llamada, no solo de algunos canales."},
+      "nota_interna": "SIEMPRE se puede ofrecer, sin importar por que canal llego el cliente. No depende del canal de origen."
+    },
+    {
+      "id": "faq-envio-08",
+      "tema": "envios",
+      "pregunta": "La paquetería no me entregó, ¿qué hago?",
+      "respuesta": "En ese caso le recomiendo ponerse en contacto directamente con la paquetería de su ciudad para que vuelvan a intentar la entrega 🙌🏼 Normalmente reintentan al día siguiente y son alrededor de 3 intentos. Si aun así no le entregan, mándeme mensajito para ver qué podemos hacer desde acá 😊",
+      "veces": 3,
+      "fuente": {"vendedor": "Miranda Huerta", "conv_id": "22530", "cita": "Normalmente vuelven a realizar la entrega al siguiente día, y me parece que son 3 intentos"}
+    },
+    {
+      "id": "faq-catalogo-02",
+      "tema": "catalogos",
+      "pregunta": "¿Tienen catálogo sin precios para compartir?",
+      "respuesta": "¡Claro que sí! Manejamos una versión sin precios para que la pueda compartir con sus clientes 😉 Enseguida se la mando 🙌🏻",
+      "veces": 3,
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "22906, 12944", "cita": "Claro que sí, enseguida se lo comparto"}
+    },
+    {
+      "id": "faq-temporada-01",
+      "tema": "catalogos",
+      "pregunta": "¿Manejan otras temporadas?",
+      "respuesta": "Sí 😊 trabajamos por temporadas: graduaciones, fiestas patrias, halloween y navidad, para que pueda surtirse con nosotros todo el año 🙌🏻 Al terminar una temporada queda disponible solo el remanente de esos modelitos.",
+      "veces": 3,
+      "fuente": {"vendedor": "Luis Garcia", "conv_id": "23214, 22882", "cita": "manejamos otras temporadas futuras como halloween y navidad para que usted pueda trabajar con nosotros en todas las temporadas proximas del año 🙌🏻😊"}
+    }
+  ]
+}

@@ -1,8 +1,9 @@
 {
   "_meta": {
     "descripcion": "Playbook de venta curado y mezclado de 3 vendedores reales de ITERA — Luis Garcia (mejor cierre, motor de ventas), Juan Francisco Trujillo 'Francisco' (mas rapido, confirma detalle antes de cotizar) y Miranda Huerta (paciencia con pedidos complejos). Cada entrada tiene respuesta_recomendada (texto blended/reescrito, listo para usar) y fuente (trazabilidad al transcript real). Reescribir NO inventa politicas; los hechos duros viven en politicas.json.",
-    "ultima_actualizacion": "2026-07-23",
-    "periodo_origen": "reportes 2026-07-16 a 2026-07-22 (1d/7d/15d)"
+    "ultima_actualizacion": "2026-07-25",
+    "periodo_origen": "reportes 2026-07-16 a 2026-07-22 (1d/7d/15d), ampliado con la mineria del bimestre 26-may a 25-jul 2026 (ODOO/conocimiento-ventas/extracto-2026-07-25-60d/)",
+    "momentos_validos": ["apertura", "informacion", "precio", "objecion", "cierre", "postventa"]
   },
   "estilo_general": {
     "tono": "Calido, cercano y profesional. Usa 'usted'. Emojis con moderacion (🙌🏻 😊 👀 💕). Trata al cliente de 'señorita'/'joven' solo si ya se sabe; si no, neutral.",
@@ -69,8 +70,8 @@
       "id": "cotizacion-lista-01",
       "momento": "cierre",
       "situacion": "Se entrega la cotizacion al cliente",
-      "respuesta_recomendada": "Le comparto su cotización 👀 ¿me confirma que todo esté correcto, por favor? Le recuerdo que su cotización es válida por 24hrs y que su mercancía no queda apartada hasta confirmar su pago, para evitarle faltantes 😉",
-      "fuente": {"vendedor": "Luis Garcia", "conv_id": "23198", "cita_original": "Le envío su cotización, ¿me confirma que todo esté correcto por favor? Le comento que su cotización es válida por 24hrs únicamente. Le recordamos que su mercancía está sujeta a disponibilidad..."}
+      "respuesta_recomendada": "Le comparto su cotización 👀 ¿me confirma que todo esté correcto, por favor? Le recuerdo que su cotización es válida por 24hrs únicamente. Durante ese tiempo sus piezas quedan apartadas; pasadas las 24hrs la cotización se cancela y las piezas se liberan para otro cliente 😉",
+      "fuente": {"vendedor": "Luis Garcia + correccion de Benny 2026-07-25", "conv_id": "23198", "cita_original": "Le envío su cotización, ¿me confirma que todo esté correcto por favor? Le comento que su cotización es válida por 24hrs únicamente. Le recordamos que su mercancía está sujeta a disponibilidad...", "nota": "El texto original decia que la mercancia NO quedaba apartada. Benny confirmo (decision D-3) que SI se aparta durante las 24hrs de vigencia; el guion se corrigio."}
     },
     {
       "id": "cierre-pago-01",
@@ -120,6 +121,69 @@
       "situacion": "Cotizacion a punto de vencer sin respuesta del cliente (seguimiento)",
       "respuesta_recomendada": "¡Hola! 😊 ¿Cómo está? Quería recordarle que su cotización está a punto de vencer ⏳ ¿gusta que le hagamos algún cambio o la dejamos lista para su pago? 🙌",
       "fuente": {"vendedor": "Juan Francisco Trujillo Rodriguez", "conv_id": "22945/23201", "cita_original": "Hola, 😊 ¿Como esta? Quería recordarle que su cotización S04445 está a punto de vencer ⏳, ¿gusta que le hagamos algun cambio? 🙌"}
+    },
+    {
+      "id": "informacion-ubicacion-01",
+      "momento": "informacion",
+      "situacion": "Cliente pregunta donde estan ubicados o si hay tienda fisica",
+      "respuesta_recomendada": "Estamos en Torreón, Coahuila 😉 Nuestra tienda de menudeo está en Av. Juárez 1352, Colonia Centro: https://maps.app.goo.gl/X9U31TeX2Z3J7PoQ9 y los pedidos de mayoreo salen de nuestro almacén de Acuña. Realizamos envíos a todo México 🙌🏻 ¿De dónde nos escribe?",
+      "fuente": {"vendedor": "Miranda Huerta / Juan Francisco Trujillo", "conv_id": "22946/22939", "cita_original": "Estamos ubicados en Av. Juárez 1352, Colonia Centro, en Torreón Coahuila: https://maps.app.goo.gl/X9U31TeX2Z3J7PoQ9 😉"}
+    },
+    {
+      "id": "informacion-horario-01",
+      "momento": "informacion",
+      "situacion": "Cliente pregunta el horario de atencion",
+      "respuesta_recomendada": "Nuestro horario de atención es de 10:00 am a 7:00 pm 🙌🏻 Los fines de semana no hay atención; le respondemos el lunes a partir de las 10 am 😊",
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "22995", "cita_original": "Estamos desde las 10 am a las 7 pm respondiendo msj y levantando pedidos 😊"}
+    },
+    {
+      "id": "informacion-tallas-01",
+      "momento": "informacion",
+      "situacion": "Cliente pregunta a que edad equivalen las tallas CH/M/G/EG",
+      "respuesta_recomendada": "Guía de tallas 🥰\nChica: 4-5 años\nMediana: 6-8 años\nGrande: 10-12 años\nExtra Grande: 13-14 años\n\nEn tallas numéricas manejamos infantil de la 2 a la 12, solo tallas pares 😊 (Si preguntan por las medidas exactas de un modelo específico: ESCALAR, no hay medidas por prenda.)",
+      "fuente": {"vendedor": "Luis Garcia / Miranda Huerta", "conv_id": "23310/22762", "cita_original": "Guía de tallas 🥰 Chica: 4-5 años Mediana: 6-8 años Grande: 10-12 años Extra Grande: 13-14 años"}
+    },
+    {
+      "id": "informacion-envio-01",
+      "momento": "informacion",
+      "situacion": "Cliente pregunta como funciona el envio o cuanto tarda",
+      "respuesta_recomendada": "*Información de Envío* 🚚 Trabajamos con paqueterías rápidas y confiables como FedEx, DHL, Estafeta y Paquetexpress. El lapso de entrega para el envío Estándar es de 5 días hábiles, y de 1 a 2 días hábiles para el envío Express 👌\nNOTA‼️ Si su destino está en zona extendida los tiempos pueden aumentar unos días. Si quiere mejorar los tiempos, le recomendamos la entrega en el centro de distribución más cercano a su zona.\n¿Me comparte su código postal para cotizarle su envío? 🙌🏻",
+      "fuente": {"vendedor": "Miranda Huerta / Luis Garcia", "conv_id": "22923/23039", "cita_original": "*Información de Envío* 🚚 Trabajamos con paqueterías rápidas y confiables como FedEx, DHL, Estafeta y Paquetexpress..."}
+    },
+    {
+      "id": "informacion-faldas-01",
+      "momento": "informacion",
+      "situacion": "Cliente pregunta si las tallas de las faldas (70/80/90/100) son de cintura",
+      "respuesta_recomendada": "Son centímetros de LARGO señorita 😊 Las faldas tradicionales son unitalla con cordón y lo que varía es el largo. La versión con tallas en números (#4, #6...) equivale a los 40 y 60 cm, y así sucesivamente con cada tallita 😊",
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "20962/13329", "cita_original": "Son la medida de lo largo señorita 😊 De igual manera la otra versión que tenemos con tallas en números como #4 ,#6 etc... equivalen a los 40 y 60 cm y a sí sucesivamente con cada tallita 😊"}
+    },
+    {
+      "id": "garantia-15dias-01",
+      "momento": "objecion",
+      "situacion": "Cliente emprendedor duda si le va a vender la mercancia / pide devoluciones",
+      "respuesta_recomendada": "Le comento que manejamos una *garantía de 15 días* 💛 perfecta para nuestros clientes emprendedores: si los productos no se venden dentro de los 15 días siguientes a la llegada de su paquete, usted puede devolverlos y le damos un saldo a favor para su nuevo pedido 🙌🏼 Así se asegura de no perder su inversión.\nNota: el envío de regreso y el de la mercancía nueva corren por su cuenta; si el nuevo pedido suma $4,000 o más, ese envío es gratis 🤑",
+      "fuente": {"vendedor": "Miranda Huerta / Juan Francisco Trujillo", "conv_id": "22951/22693", "cita_original": "manejamos una garantía de 15 días perfecta para nuestros clientes emprendedores, con ella se aseguran de no perder su inversión porque en caso de no vender los productos se los podemos cambiar por nuevos modelos 🙌🏼"}
+    },
+    {
+      "id": "factura-01",
+      "momento": "cierre",
+      "situacion": "Cliente PREGUNTA si facturan (nunca ofrecer factura de forma proactiva)",
+      "respuesta_recomendada": "Sí señorita, se agrega el 16% de IVA 😊 Para su factura necesitaríamos su constancia de situación fiscal y su uso de CFDI. ¿Le agrego el IVA o lo dejamos sin factura? (INTERNO: la factura NO se ofrece sola, solo si el cliente pregunta. Una vez que la pidió, confirmar antes del pago porque cambia el total. La emite otro departamento, no es inmediata.)",
+      "fuente": {"vendedor": "Miranda Huerta", "conv_id": "23376", "cita_original": "Sí, agregando el 16% de IVA, está bien o sin factura? 😊"}
+    },
+    {
+      "id": "precio-desde-01",
+      "momento": "precio",
+      "situacion": "Cliente reclama que el precio del catalogo dice 'desde' y le salio mas caro",
+      "respuesta_recomendada": "El precio cambia según la talla: a ese precio se manejan solo algunas tallas, por eso ponemos *desde* — en las tallitas más grandes aumenta un poco 😊 En su cotización le aparece el precio exacto de cada talla.",
+      "fuente": {"vendedor": "Juan Francisco Trujillo", "conv_id": "10130", "cita_original": "Ya vi el porque señorita, lo que pasa es que a ese precio solo se manejan una tallas, por eso ponemos *desde* ya que en tallitas más grandes aumenta el precio"}
+    },
+    {
+      "id": "mayoreo-local-01",
+      "momento": "precio",
+      "situacion": "Cliente local pregunta si puede pasar a recoger a la tienda",
+      "respuesta_recomendada": "¡Claro que sí! Puede hacer su pedido por WhatsApp y pasar a recogerlo en nuestra tienda de Torreón (Av. Juárez 1352) 🤝 Para clientes locales el precio de mayoreo aplica en compras a partir de $3,000 MXN a precio mayorista. Si al recoger ve más modelos que le gusten, se los agregamos respetando el precio de mayoreo ✅",
+      "fuente": {"vendedor": "Luis Garcia", "conv_id": "18757", "cita_original": "El precio de mayoreo para clientes locales aplicará únicamente en compras a partir de $3,000 MXN A PRECIO MAYORISTA."}
     },
     {
       "id": "queja-01",

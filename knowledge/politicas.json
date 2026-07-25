@@ -1,41 +1,152 @@
 {
   "_meta": {
-    "descripcion": "Hechos duros del negocio ITERA, inferidos de conversaciones reales de los vendedores Luis Garcia, Juan Francisco Trujillo y Miranda Huerta (reportes 2026-07-16 a 2026-07-22). VALIDAR CON BENNY antes de produccion — estos datos vienen de chats, no de una fuente normativa. El agente NUNCA debe inventar datos que no esten aqui o confirmados en vivo contra Odoo.",
-    "ultima_actualizacion": "2026-07-24",
-    "estado": "PENDIENTE_VALIDACION_HUMANA (excepto 'pagos.datos_cuenta', validado por Benny 2026-07-24)"
+    "descripcion": "Hechos duros del negocio ITERA. Base original inferida de conversaciones de Luis Garcia, Juan Francisco Trujillo y Miranda Huerta (reportes 2026-07-16 a 2026-07-22), AMPLIADA y CORREGIDA con la mineria del bimestre 26-may a 25-jul 2026 (46,853 mensajes / 2,096 pares pregunta-respuesta, extracto en ODOO/conocimiento-ventas/extracto-2026-07-25-60d/). El agente NUNCA debe inventar datos que no esten aqui o confirmados en vivo contra Odoo.",
+    "ultima_actualizacion": "2026-07-25",
+    "estado": "VALIDADO_POR_BENNY 2026-07-25 sobre la evidencia del bimestre. Las 4 decisiones de negocio (ubicaciones, envio gratis, apartado 24h, link de Mercado Pago) las resolvio Benny directamente."
   },
+
+  "empresa": {
+    "nombre": "ITERA",
+    "giro": "Ropa y accesorios (fiestas patrias, prendas infantiles/juveniles, disfraces, ropa casual y accesorios). Venta de mayoreo a revendedores y negocios en todo Mexico.",
+    "ubicaciones": {
+      "acuna": {
+        "rol": "ALMACEN. Desde aqui salen TODOS los pedidos mayoristas que se envian. Es el almacen que cotiza el agente (ODOO_WAREHOUSE_ID=6).",
+        "atiende_publico": false,
+        "nota": "No atiende recoleccion al publico; es almacen de envios."
+      },
+      "torreon": {
+        "rol": "Tienda de MENUDEO para cliente final, y punto de recoleccion local.",
+        "direccion": "Av. Juarez 1352, Colonia Centro, Torreon, Coahuila",
+        "maps": "https://maps.app.goo.gl/X9U31TeX2Z3J7PoQ9",
+        "atiende_publico": true
+      },
+      "PENDIENTE_confirmar": "Benny menciono que lo ideal es que los mayoristas visiten Acuna para atender pedidos mayoristas, pero al elegir donde aplica el minimo de $3,000 selecciono 'solo Torreon / Acuna no atiende recoleccion'. Si Acuna SI recibe mayoristas (por cita), corregir 'acuna.atiende_publico'."
+    },
+    "texto_ubicacion": "Estamos ubicados en la ciudad de Torreon Coahuila, contamos con nuestra sucursal en https://maps.app.goo.gl/X9U31TeX2Z3J7PoQ9 y realizamos envios a todo Mexico 😉",
+    "horario": {
+      "lunes_a_sabado": "10:00 a 19:00",
+      "domingo": "10:00 a 16:00",
+      "abre_fin_de_semana": true,
+      "nota": "Se atiende TODOS los dias, incluido el fin de semana. Confirmado por Benny 2026-07-25.",
+      "NO_CONFUNDIR_CON_ENVIOS": "Que la tienda abra el fin de semana NO significa que salgan paquetes: las paqueterias no laboran sabado ni domingo (ver envio.operativa). Un pedido pagado en fin de semana se atiende igual, pero sale el lunes."
+    },
+    "cobertura": "Envios a toda la republica mexicana. NO se envia a Estados Unidos ni al extranjero.",
+    "tienda_en_linea": {
+      "url": "https://www.itera.cool/shop",
+      "nota": "Es el canal de MENUDEO (precios de menudeo, tallas y modelos). Util para el cliente que quiere menos de 6 piezas y no califica a mayoreo."
+    },
+    "direccion_devoluciones": {
+      "titular": "David Samir Benito Garcia",
+      "direccion": "Calle Manuel Acuna #79, Colonia Centro, Torreon, Coahuila",
+      "codigo_postal": "27000",
+      "referencia": "Bodega beige entre Av. Allende y Blvd. Independencia",
+      "telefono": "871 975 6637",
+      "correo": "iteratorreon@gmail.com",
+      "nota": "Es la direccion a la que el cliente regresa mercancia bajo la garantia de 15 dias. Mismo CP que ENVIA_ORIGEN_CP."
+    },
+    "canales": {
+      "origen_clientes": ["Facebook", "TikTok", "WhatsApp"],
+      "grupo_whatsapp": "Existe un grupo de WhatsApp donde se publican catalogos y promociones. NO compartir el link salvo que Benny lo confirme vigente.",
+      "toma_de_pedidos": "SIEMPRE se puede dirigir al cliente con un vendedor para atenderlo por llamada o videollamada, sin importar por que canal haya llegado. No depende del canal de origen. Si el cliente lo pide o se le complica por escrito, ofrecerlo."
+    }
+  },
+
   "mayoreo": {
     "ropa_minimo_piezas": 6,
     "ropa_regla": "Los precios de mayoreo se aplican a partir de las 6 piezas. El cliente puede combinar modelos y tallas como prefiera, o pedir surtido.",
+    "texto_mayoreo": "Nuestros precios de mayoreo se aplican a partir de las 6 piezas, usted puede combinar modelos y tallas como prefiera, o puede pedir surtido 😉",
     "accesorios_minimo_piezas": 40,
     "accesorios_excepcion": "En accesorios el mayoreo normalmente aplica desde 40 piezas, pero se le puede respetar el precio de mayoreo a partir de 25 piezas como cortesia para cerrar.",
-    "precio_preventa_es_el_mas_bajo": true,
-    "nota_preventa": "El precio de preventa es el mas bajo que se maneja. No hay descuento adicional por volumen mas alla del mayoreo."
+    "menos_de_6_piezas": "Aplica precio de MENUDEO, no mayoreo. Se le puede indicar el precio de menudeo del modelito o mandarlo a la tienda en linea.",
+    "local_recoge_en_torreon": {
+      "minimo_pesos": 3000,
+      "regla": "Para clientes LOCALES que recogen en la tienda de Torreon, el precio de mayoreo aplica en compras a partir de $3,000 MXN a precio mayorista. Es un minimo en PESOS, no en piezas.",
+      "texto": "✨ Informacion importante para nuestros clientes mayoristas locales ✨ El precio de mayoreo para clientes locales aplicara unicamente en compras a partir de $3,000 MXN A PRECIO MAYORISTA. 🤝 ✅ Puedes hacer tu pedido con nosotros directamente por WhatsApp y pasar a recogerlo en tienda. ✅ Si al recoger ves mas modelos que te gusten en la sucursal, ¡puedes agregarlos a tu compra y se respetara el precio de mayoreo! ⚠️ Recuerda: Los productos estaran sujetos a disponibilidad del stock en tienda.",
+      "aplica_en": "Torreon (Av. Juarez 1352). Acuna es almacen de envios y no atiende recoleccion al publico."
+    }
   },
+
+  "precios": {
+    "niveles": {
+      "preventa": "El mas bajo. Dura unas semanas por temporada; al terminar se pasa a mayoreo a precio normal.",
+      "mayoreo": "Desde 6 piezas (o $3,000 recogiendo en Torreon).",
+      "menudeo": "Menos de 6 piezas, o en la tienda en linea itera.cool/shop."
+    },
+    "texto_preventa": "La preventa la manejamos con los precios mas bajos, solo dura unas semanas, de ahi comenzamos con la venta de mayoreo a precios normales 😊",
+    "preventa_es_el_mas_bajo": true,
+    "fecha_fin_preventa": "NO GUARDAR una fecha fija: los vendedores dan respuestas distintas ('ultimo de este mes', '3 semanas', 'aun no tenemos fecha'). Si el cliente pregunta hasta cuando dura la preventa, ESCALAR.",
+    "varia_por_talla": {
+      "regla": true,
+      "explicacion": "El precio de un mismo modelo CAMBIA segun la talla; por eso los catalogos dicen 'desde $X'. El agente NUNCA debe prometer un precio unico por modelo: el precio real lo calcula Odoo al crear la cotizacion.",
+      "texto": "A ese precio solo se manejan unas tallas, por eso ponemos *desde*, ya que en tallitas mas grandes aumenta el precio 😊"
+    },
+    "descuentos": "Cualquier descuento fuera de la lista de precios requiere autorizacion de un superior. El agente NO lo concede: ESCALA con escalar_a_benny y le dice al cliente 'permitame verificarlo, no tardo'."
+  },
+
   "cotizacion": {
     "vigencia_horas": 24,
-    "texto_vigencia": "Su cotizacion es valida por 24hrs unicamente. Le recordamos que su mercancia esta sujeta a disponibilidad, por lo que sus piezas no quedan apartadas hasta que su pago es confirmado. Esto lo hacemos para evitar faltantes en sus pedidos.",
-    "no_se_aparta_sin_pago": true
+    "apartado": {
+      "se_apartan": true,
+      "regla": "Las piezas SI quedan apartadas durante las 24 horas en que la cotizacion esta vigente. Pasadas las 24 horas la cotizacion se cancela y las piezas se liberan para otro cliente.",
+      "fuente": "Confirmado por Benny 2026-07-25 (decision D-3). Corrige la version anterior de este archivo, que decia que no se apartaban."
+    },
+    "texto_vigencia": "Su cotizacion es valida por 24hrs unicamente. Durante ese tiempo sus piezas quedan apartadas; pasadas las 24hrs la cotizacion se cancela y las piezas se liberan para otro cliente 😉",
+    "reactivacion": {
+      "se_puede": true,
+      "regla": "Una cotizacion vencida se puede reactivar SI las piezas siguen disponibles. No es automatico y no lo hace el agente: si el cliente pide reactivar una cotizacion vencida, ESCALAR.",
+      "advertencia_al_cliente": "Al reactivar hay que volver a revisar existencias: los modelitos se agotan mientras tanto."
+    }
   },
+
   "envio": {
     "gratis_umbral_pesos": 4000,
-    "regla_envio_gratis": "Si el pedido supera los $4,000 el envio corre por cuenta de la empresa (gratis). Debajo de ese monto el envio tiene costo segun destino.",
+    "gratis_es_fijo": true,
+    "regla_envio_gratis": "Si el pedido supera los $4,000 el envio corre por cuenta de la empresa (gratis). Debajo de ese monto el envio tiene costo segun destino. Confirmado por Benny 2026-07-25 (decision D-2) como umbral FIJO, no promocional.",
+    "nota_promocion_vencida": "En junio 2026 hubo una promocion temporal de envio gratis desde $2,500 que NO aplicaba en zona extendida. Esa promocion YA NO ESTA VIGENTE. Si un cliente la menciona, el umbral actual es $4,000.",
     "usar_como_incentivo": "Si el pedido esta cerca de $4,000, sugerir agregar unas piezas mas para alcanzar envio gratis.",
-    "paqueterias": ["Estafeta", "DHL", "FedEx", "Paquetexpress"],
+    "paqueterias": ["Estafeta", "FedEx", "DHL", "Paquetexpress"],
     "paqueteria_default": "Estafeta",
+    "no_se_maneja": "Correos de Mexico. Solo las cuatro paqueterias listadas.",
+    "texto_informacion": "*Informacion de Envio* 🚚 Trabajamos con paqueterias rapidas y confiables como FedEx, DHL, Estafeta y Paquetexpress. El lapso de entrega para el envio Estandar es de 5 dias habiles, y de 1 a 2 dias habiles para el envio Express 👌 NOTA‼️: Si el destino se encuentra en zona extendida, los tiempos de entrega pueden variar y aumentar unos dias dependiendo de la paqueteria. Si quiere mejorar los tiempos de entrega, le recomendamos que la entrega sea en el centro de distribucion de paqueteria mas cercano a su zona. Si gusta que le coticemos el costo de envio hacia su zona, solo necesita proporcionarnos su codigo postal 🙌🏻",
+    "tiempos": {
+      "estandar_dias_habiles": 5,
+      "express_dias_habiles": "1 a 2",
+      "zona_extendida": "Puede aumentar varios dias segun la paqueteria.",
+      "nota": "Usar el guion oficial (5 dias habiles estandar). Algunos vendedores dicen '3 a 5 dias'; prometer de menos genera reclamaciones."
+    },
+    "operativa": {
+      "corte_recoleccion": "14:30",
+      "regla_corte": "La paqueteria recolecta alrededor de las 2:30 pm. Un pedido confirmado despues de esa hora sale al dia siguiente.",
+      "dias_tras_pago": "Tras confirmar el pago, se tarda aproximadamente 1 dia en recolectar los modelitos y enviarlos.",
+      "no_salen_fines_de_semana": true,
+      "nota_dias": "Las paqueterias no laboran fines de semana. Un pedido pagado en fin de semana sale el lunes."
+    },
+    "guia": {
+      "envio_automatico": true,
+      "regla": "La guia se envia AUTOMATICAMENTE cuando el pedido esta listo. El agente NO debe prometer mandarla el mismo, ni inventar numeros de guia.",
+      "texto_al_cliente": "Muchas gracias por elegirnos! Anexaremos sus datos y en cuanto su pedido este listo para enviarse se le enviara su numero de guia automaticamente 🥰",
+      "texto_guia": "📦 ¡Hola! Tu pedido ya esta en camino con *{paqueteria}*. ✉️ Numero de guia: *{guia}* Nos emociona ser parte de tu exito 🌟. Para asegurar que todo llegue perfecto, te sugerimos grabar un video al abrir tu paquete 📹. ¡Gracias por elegirnos! 💛"
+    },
+    "intentos_entrega": {
+      "cantidad": 3,
+      "regla": "La paqueteria realiza aproximadamente 3 intentos de entrega, normalmente al dia siguiente. Si no entregan, el cliente debe contactar a la paqueteria de su ciudad; si aun asi no se resuelve, ESCALAR."
+    },
     "ocurre_disponible": true,
     "nota_ocurre": "Se puede enviar a 'ocurre' (recoleccion en centro de distribucion) si el cliente vive en zona extendida, para mejorar tiempos de entrega.",
-    "no_salen_fines_de_semana": true,
-    "nota_dias": "Las paqueterias no laboran fines de semana. Un pedido pagado en fin de semana sale el lunes.",
-    "IMPORTANTE_cotizador_real": "Los costos de envio reales se cotizan con la API de envia.com (tool cotizar_envio), NO se inventan. Ejemplos historicos de vendedores humanos ($300 a Cuauhtemoc Chih., $315 a Papantla Ver.) son solo referencia, no tarifas fijas."
+    "datos_envio_formulario": "Datos de envio 💕\nNombre:\nDireccion con calle y numero:\nColonia:\nEstado:\nCiudad:\nCodigo postal:\nNumero de celular:\nCorreo electronico:\nUna referencia (entre que calles, esquina con...):\nNota: Si su domicilio se encuentra en zona extendida y quiere mejorar los tiempos de entrega, le recomendamos que la entrega sea en el centro de distribucion mas cercano a su zona ‼️",
+    "IMPORTANTE_cotizador_real": "Los costos de envio reales se cotizan con la API de envia.com (tool cotizar_envio), NO se inventan. Los montos vistos en chats ($180 a $420 segun destino) son solo referencia historica, no tarifas fijas."
   },
+
   "almacen_despacho": {
-    "sucursal": "Acuna",
+    "sucursal_despacho": "Acuna",
     "nota": "Este agente despacha SIEMPRE desde el almacen de Acuna. Las rutas de Odoo resuelven automaticamente el surtido desde otros almacenes si a Acuna le falta stock. El agente solo crea la cotizacion contra Acuna; no gestiona el surtido cross-almacen.",
-    "sucursal_fisica_humanos": "El equipo humano de ventas esta en Torreon, Coahuila. NO mencionar Torreon como origen para esta unidad de negocio."
+    "se_puede_mencionar_torreon": true,
+    "como_explicarlo": "Si el cliente pregunta donde estan: Torreon (Av. Juarez 1352) es la tienda de menudeo para cliente final; Acuna es el almacen desde donde salen los pedidos mayoristas. Confirmado por Benny 2026-07-25 (decision D-1); la regla anterior de NO mencionar Torreon quedo sin efecto."
   },
+
   "pagos": {
-    "medios": ["Deposito Oxxo (Codigo Spin)", "Transferencia/Deposito BBVA", "Tarjeta de credito (link Mercado Pago)"],
+    "medios": ["Deposito Oxxo (Codigo Spin)", "Transferencia/Deposito BBVA (ventanilla, cajero o transferencia)", "Tarjeta de credito (link Mercado Pago)"],
+    "texto_formas_pago": "Manejamos 3 formas de pago 😁 Deposito en Oxxo; de igual manera contamos con una cuenta de BBVA en la que se pueden realizar depositos en ventanilla, cajero automatico y por transferencia; y por ultimo tambien se puede realizar el pago con tarjeta de credito, mediante un link de Mercado Pago 😊",
     "datos_cuenta": {
       "estado": "VALIDADO_POR_BENNY",
       "fecha_validacion": "2026-07-24",
@@ -47,28 +158,104 @@
       "mercado_pago": "El link de Mercado Pago se genera por monto; si el cliente elige tarjeta de credito, escalar para que se genere el link.",
       "ADVERTENCIA_NO_ALTERAR": "Datos de deposito REALES confirmados por Benny. NUNCA alterar, abreviar, redondear ni cambiar un solo digito; compartirlos exactamente como estan escritos aqui."
     },
+    "nota_codigo_spin": "El codigo Spin es EXCLUSIVO para deposito en Oxxo; no sirve como tarjeta bancaria ni para deposito en banco. Los clientes lo confunden seguido: si el cliente quiere depositar en banco, darle la cuenta BBVA.",
+    "nota_bbva": "La cuenta BBVA sirve para las tres cosas: deposito en ventanilla, deposito en cajero automatico y transferencia.",
+    "mercado_pago": {
+      "quien_lo_genera": "Benny",
+      "regla": "El agente NO genera el link de Mercado Pago. Si el cliente quiere pagar con tarjeta de credito, ESCALAR con escalar_a_benny; Benny genera el link, se lo envia al agente y el agente lo reenvia al cliente. Confirmado por Benny 2026-07-25."
+    },
+    "no_contra_entrega": "NO se maneja pago contra entrega. Si el cliente lo asume, aclararlo con amabilidad y ofrecer las tres formas de pago.",
+    "pago_partido": "Se acepta pagar una parte por deposito y otra por transferencia. Implica cuadrar montos: ESCALAR.",
+    "notas_credito": "Se aceptan notas de credito a favor del cliente y se descuentan del total. Implica aritmetica sobre saldos: ESCALAR, no calcularlo el agente.",
+    "despues_del_pago": "Una vez realizado el pago se le pide al cliente el formulario de datos de envio (ver envio.datos_envio_formulario).",
     "como_compartir": "Cuando el cliente pide la cuenta o elige transferencia/deposito/Oxxo, el agente SI comparte estos datos (ya estan validados), copiandolos exactos. Para tarjeta de credito, escalar para el link de Mercado Pago.",
     "confirmacion_pago": "El agente comparte la cuenta para RECIBIR el pago, pero NUNCA confirma un pago por su cuenta. Cuando el cliente dice que ya pago o manda comprobante, el agente notifica 1:1 a Benny y finanzas (tool notificar_pago_multiple) y responde al cliente algo generico ('gracias, en breve confirmamos tu pago'). El pago se marca confirmado solo cuando un humano lo valida."
   },
+
   "facturacion": {
     "disponible": true,
     "iva_porcentaje": 16,
     "requisitos": ["Constancia de situacion fiscal (RFC)", "Uso de CFDI"],
-    "nota": "Se factura agregando el 16% de IVA. Se piden constancia de situacion fiscal y el uso de CFDI (ej. 'Adquisicion de mercancias')."
+    "nota": "Se factura agregando el 16% de IVA. Se piden constancia de situacion fiscal y el uso de CFDI (ej. 'Adquisicion de mercancias').",
+    "proceso": {
+      "inmediata": false,
+      "regla": "La factura NO se emite en el momento: la genera otro departamento. El agente dice que se solicita, no que se entrega al instante.",
+      "complemento_de_pago": "En algunos casos la factura se emite con complemento de pago. Si el cliente pregunta por el complemento, ESCALAR."
+    },
+    "solo_si_el_cliente_pregunta": {
+      "regla": "NO ofrecer factura de forma proactiva. La factura solo se menciona SI EL CLIENTE PREGUNTA por ella. Confirmado por Benny 2026-07-25.",
+      "si_pregunta": "Una vez que el cliente la pide, confirmar antes del pago si la quiere con IVA, porque cambia el total.",
+      "texto": "¿Le agrego el 16% de IVA para su factura, o lo dejamos sin factura? 😊"
+    }
   },
+
   "garantia_y_cambios": {
-    "PENDIENTE_validar": "Los vendedores mencionan resolver percances (ej. modelo equivocado) recompensando con accesorios de regalo, y correccion de guias por error de direccion. NO hay una politica de garantia formal documentada. Cualquier tema de garantia/devolucion/reembolso/producto danado se ESCALA a Benny, no se resuelve por el agente."
+    "existe_politica_formal": true,
+    "garantia_dias": 15,
+    "texto_garantia": "*Nuestra politica de garantia en ITERA* 💛 Si los productos no se venden dentro de 15 dias siguientes a la llegada de su paquete usted puede devolverlos.\nPROCESO ✔️\n1. Usted debe enviar los productos de regreso a ITERA.\n2. Una vez recibidos le proporcionamos un saldo a su favor.\n3. Se realiza su nuevo pedido.\nNota: El envio de regreso y el envio de la nueva mercancia es por su cuenta. Si el nuevo pedido suma $4,000 o mas, el envio de la nueva mercancia sera gratuito 🤑",
+    "usar_como_argumento_de_venta": "Con clientes que apenas emprenden, la garantia de 15 dias es un cierre fuerte: se aseguran de no perder su inversion porque si no venden se les cambia por modelos nuevos.",
+    "cambios": {
+      "se_hacen": true,
+      "envios": "Tanto el envio de regreso como el de la mercancia nueva corren por cuenta del cliente.",
+      "nota": "Si el nuevo pedido suma $4,000 o mas, el envio de la mercancia nueva es gratuito."
+    },
+    "pieza_danada": {
+      "compensacion_referencia": "Se ha ofrecido el 10% del valor de la pieza danada como saldo a favor, y se emite nota de credito.",
+      "ESCALAR": "El agente NO negocia compensaciones ni promete porcentajes. ESCALA con escalar_a_benny. Este dato solo existe para que conozca el marco y no prometa de mas ni de menos."
+    },
+    "evidencia_video": "Al enviar la guia se le sugiere al cliente grabar un video al abrir el paquete. Es la evidencia estandar para reclamaciones por faltantes o dano: si el cliente reporta un problema, lo primero es pedirle esa grabacion.",
+    "escalacion": "Cualquier queja, garantia, devolucion, producto danado, faltante o pedido personalizado se ESCALA a Benny. El agente puede EXPLICAR la politica de 15 dias (arriba), pero no resuelve casos ni promete compensaciones."
   },
+
   "tallas": {
-    "infantil": ["1", "2", "4", "6", "8", "10", "12"],
-    "juvenil_rango_edad": "14-16 anos",
-    "letras": ["XS", "CH/X", "M", "G", "EG"],
-    "equivalencias": "XS=X, X=M, M=G, G=EG (juvenil ~14, aprox #14), EG=2EG (juvenil ~16, aprox #16). Talla 1 = 1 ano, Talla 2 = 2 anos.",
-    "nota_dama": "Algunos catalogos (ej. patrio infantil) NO manejan tallas de dama; las juveniles abarcan 14-16 anos. Confirmar disponibilidad real de tallas de dama contra Odoo antes de prometer.",
-    "tallas_agotadas_catalogo": "En los catalogos PDF, las tallas marcadas en color rojo estan agotadas; las blancas disponibles. El agente confirma disponibilidad real contra Odoo, no contra el PDF."
+    "guia_por_edad": {
+      "CH": "4-5 anos",
+      "M": "6-8 anos",
+      "G": "10-12 anos",
+      "EG": "13-14 anos"
+    },
+    "texto_guia": "Guia de tallas 🥰\nChica: 4-5 anos\nMediana: 6-8 anos\nGrande: 10-12 anos\nExtra Grande: 13-14 anos",
+    "infantil_numericas": ["2", "4", "6", "8", "10", "12"],
+    "solo_tallas_pares": "En infantil solo se manejan tallas pares.",
+    "variacion_entre_tallas_cm": 4,
+    "faldas_por_largo": {
+      "regla": "Las faldas tradicionales (lisas y floreadas) son UNITALLA con cordon; el numero de la 'talla' es el LARGO EN CENTIMETROS, no la cintura ni la edad.",
+      "ejemplos_cm": ["50", "60", "70", "80", "90", "100"],
+      "equivalencia_numerica": "Las versiones con talla numerica equivalen aproximadamente a cm: #4 ≈ 40 cm, #6 ≈ 60 cm, y asi sucesivamente.",
+      "texto": "Son la medida de lo largo señorita 😊 Las faldas son unitalla y lo que varia es el largo. La otra version que tenemos con tallas en numeros como #4, #6, etc. equivalen a los 40 y 60 cm y asi sucesivamente con cada tallita 😊"
+    },
+    "excepciones_por_modelo": {
+      "advertencia": "La guia por edad es GENERAL. Hay modelos con la escala corrida (ej. Vestido Queretano: CH = 2-3 anos, M = 4-5, G = 6-8) y prendas juveniles con rangos distintos segun quien conteste (14-16 o 15-20 anos).",
+      "regla": "El agente da la guia general. Si preguntan por las medidas o el rango de edad de un MODELO ESPECIFICO, ESCALAR: no hay medidas por prenda en Odoo ni en el conocimiento."
+    },
+    "talla_combinada": "Algunos modelos manejan una talla que abarca dos numeros (ej. blusa tipica bordada en '4-6' como talla unica).",
+    "tallas_agotadas_catalogo": "En los catalogos PDF, las tallas marcadas en color rojo estan agotadas; las blancas disponibles. El agente confirma disponibilidad real contra Odoo, no contra el PDF.",
+    "medidas_en_cm_por_prenda": "NO EXISTEN. Verificado contra Odoo: de 322 productos publicados solo 7 tienen description_sale y no hay ningun campo de medidas. Si el cliente pide medidas exactas de una prenda, ESCALAR."
   },
+
+  "producto": {
+    "materiales_conocidos": ["Lino algodon", "Popelina"],
+    "regla_material": "La tela VARIA segun el modelo. El agente puede decir que varia y ESCALAR si preguntan por un modelo especifico. NO inventar composiciones.",
+    "calidad_relativa": "La falda tradicional es de mejor tela que la falda lisa normal; por eso su precio es mayor.",
+    "no_se_maneja": ["Sombreros"],
+    "nota_colores": "Los colores disponibles cambian por modelo y temporada. Odoo es la unica fuente de verdad: consultar con buscar_catalogo / consultar_stock, nunca listar colores de memoria."
+  },
+
   "catalogos": {
-    "nombres": ["PATRIO PREVENTA", "PATRIO PREVENTA SIN PRECIO", "ACCESORIOS"],
-    "nota": "Los catalogos se resurten cada semana. 'Sin precio' se comparte cuando el cliente quiere promocionar/revender sin mostrar el costo de compra."
+    "nombres": [
+      "PATRIO PREVENTA",
+      "PATRIO PREVENTA SIN PRECIO",
+      "ACCESORIOS",
+      "ROPA CASUAL",
+      "CATALOGO VESTIDOS",
+      "DISFRAZ MAYOREO"
+    ],
+    "sin_precio": "Existe una version 'sin precio' que se comparte cuando el cliente quiere promocionar o revender sin mostrar el costo de compra.",
+    "anticipado": "A veces se comparte un catalogo anticipado con clientes selectos antes de publicarlo en los grupos.",
+    "versionado": "Los catalogos llevan fecha en el nombre (ej. '23/06') y se resurten; siempre compartir el mas reciente.",
+    "temporadas": {
+      "ciclo": ["Graduaciones", "Fiestas patrias", "Halloween", "Navidad"],
+      "nota": "El negocio trabaja por temporadas. Al terminar una temporada solo queda disponible el remanente durante el resto del ano. Es un buen argumento para retener clientes nuevos: se les puede surtir todo el ano."
+    }
   }
 }

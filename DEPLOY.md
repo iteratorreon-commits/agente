@@ -111,6 +111,11 @@ de ahí el agente ya le responde a los clientes reales.
 - El procesamiento es en segundo plano (BackgroundTasks). Si el proceso reinicia justo en
   medio de un turno, ese turno se pierde (a este volumen, riesgo bajo). Si crece mucho,
   migrar a una cola durable + Postgres.
-- El gasto grande NO es Render (~$8/mo): son los tokens de Opus 4.8.
+- El gasto grande NO es Render (~$8/mo): son los tokens del modelo. Desde la migración a
+  Sonnet 5 con prompt caching el costo por turno baja ~70% respecto a Opus 4.8. El precio
+  introductorio de Sonnet 5 ($2/$10 por millón) termina el 31-ago-2026 y sube a $3/$15.
+- El prompt caching cachea las 8 tools + el system prompt (~4k tokens) en un solo
+  breakpoint. Se invalida cuando Benny manda un `APRENDE:` y se vuelve a calentar solo.
+  Si `cache_read` sale 0 turno tras turno en la bitácora, algo rompió el prefijo.
 - El gate de quejas hoy no atrapa frases como "está mal la guía" (solo equivocad/garantía/
   devolución/…): ampliar patrones en `src/escalation_rules.py` si se quiere más cobertura.

@@ -43,8 +43,12 @@ def _bool_env(name: str, default: bool = False) -> bool:
 class Config:
     # Anthropic
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-    model: str = os.getenv("AGENTE_MODEL", "claude-opus-4-8")
+    model: str = os.getenv("AGENTE_MODEL", "claude-sonnet-5")
     effort: str = os.getenv("AGENTE_EFFORT", "medium")
+    # Limita thinking + texto JUNTOS. Con adaptive thinking encendido, 2048 truncaba las
+    # respuestas a media frase; 4096 deja margen. Si aparece stop_reason="max_tokens" en
+    # la bitacora, subirlo antes que apagar el thinking.
+    max_tokens: int = _int_env("AGENTE_MAX_TOKENS", 4096)
 
     # Modo sombra: el agente procesa y registra su respuesta, pero NO la envia al
     # cliente (los mensajes a Benny/finanzas SI pasan, para no perder escalaciones ni

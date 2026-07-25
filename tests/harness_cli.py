@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src import decision_log, escalation_rules, session_store  # noqa: E402
+from src import agent, decision_log, escalation_rules, session_store  # noqa: E402
 from src.agent import responder  # noqa: E402
 
 SID = "test-cli-001"
@@ -43,6 +43,14 @@ def main() -> None:
         respuesta, tools = responder(messages)
         if tools:
             print(f"  (tools: {', '.join(tools)})")
+        u = agent.ultimo_uso
+        if u:
+            # cache_read debe ser > 0 del SEGUNDO turno en adelante (el primero solo escribe).
+            print(
+                f"  (uso: {u.get('modelo')} | in {u['input']} · out {u['output']}"
+                f" · cache_w {u['cache_write']} · cache_r {u['cache_read']}"
+                f" | stop={u.get('stop_reason')})"
+            )
         print(f"Agente> {respuesta}\n")
 
         nuevos = list(turnos) + [

@@ -1,7 +1,7 @@
 # Agente vendedor virtual de WhatsApp — ITERA (unidad de negocio nueva)
 
 Vendedor de IA para WhatsApp construido con el **Tool Runner de la Messages API de Anthropic**
-(`claude-opus-4-8`). Combina el estilo de los tres mejores vendedores humanos de ITERA
+(`claude-sonnet-5`). Combina el estilo de los tres mejores vendedores humanos de ITERA
 (Luis, Francisco, Miranda), cotiza contra Odoo en vivo, cotiza paquetería con envia.com,
 y sabe cuándo escalar a Benny en vez de improvisar.
 
@@ -15,7 +15,7 @@ Cliente WhatsApp → ManyChat (External Request, header x-itera-token)
     → FastAPI /manychat/inbound
         → gate determinista (pago / queja)  [escalation_rules.py]
         → memoria de sesión                  [session_store.py, SQLite]
-        → agente (Tool Runner + Opus 4.8)    [agent.py]
+        → agente (Tool Runner + Sonnet 5)    [agent.py]
              tools: buscar_catalogo, consultar_stock, crear_cotizacion (Odoo)
                     cotizar_envio (envia.com)
                     consultar_playbook (knowledge/)
