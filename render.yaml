@@ -28,7 +28,9 @@ services:
       - key: APRENDIZAJES_PATH
         value: /data/aprendizajes.json
       - key: AGENTE_SHADOW_MODE
-        value: "1"           # ARRANCA EN MODO SOMBRA. Cambiar a "0" cuando quieras que conteste a clientes.
+        value: "0"           # EN VIVO: contesta a clientes reales. Poner "1" para volver a modo sombra.
+                             # FRENO DE EMERGENCIA: ponerlo en "1" desde el dashboard de Render surte
+                             # efecto de inmediato (sin redeploy). Volverlo a "1" aqui para que quede fijo.
       - key: AGENTE_MODEL
         value: claude-sonnet-5
       - key: AGENTE_EFFORT
