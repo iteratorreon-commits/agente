@@ -7,11 +7,33 @@ aprobado (checkpoint 2: confirmar en ManyChat).
 """
 from __future__ import annotations
 
+import re
+
 import httpx
 
 from .config import cfg
 
 _SEND_URL = "https://api.manychat.com/fb/sending/sendContent"
+
+# WhatsApp usa *un* asterisco para negrita; **doble** es Markdown y NO lo interpreta:
+# le llegan los asteriscos literales al cliente. El modelo escribia **asi** en el 73% de
+# sus mensajes. La regla ya esta en el prompt, pero eso es probabilistico y el formato no
+# deberia depender de que obedezca, asi que aqui se normaliza de forma determinista.
+_NEGRITA_DOBLE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+_SALTOS_DE_MAS = re.compile(r"\n{3,}")
+
+
+def formato_whatsapp(texto: str) -> str:
+    """Normaliza el texto al formato que WhatsApp SI renderiza.
+
+    Convierte la negrita doble en simple (conserva el enfasis, no lo borra) y colapsa
+    los bloques de 3+ saltos de linea. Funcion pura; se aplica en el unico punto de
+    salida al cliente, asi que tambien cubre los mensajes que mandan las tools.
+    """
+    if not texto:
+        return texto
+    texto = _NEGRITA_DOBLE.sub(r"*\1*", texto)
+    return _SALTOS_DE_MAS.sub("\n\n", texto)
 
 
 def _internos() -> set[str]:
@@ -42,7 +64,7 @@ def enviar_mensaje(subscriber_id: str, texto: str, imagen_url: str | None = None
     # Solo-imagen valido (texto vacio): no mandamos un bloque de texto vacio.
     messages: list[dict] = []
     if texto:
-        messages.append({"type": "text", "text": texto})
+        messages.append({"type": "text", "text": formato_whatsapp(texto)})
     if imagen_url:
         messages.append({"type": "image", "url": imagen_url})
     if not messages:
