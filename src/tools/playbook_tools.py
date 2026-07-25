@@ -111,8 +111,13 @@ def consultar_playbook(situacion: str, momento: str = "") -> str:
     Args:
         situacion: Descripcion de la situacion o la pregunta del cliente
                    (ej. 'donde estan ubicados', 'hacen factura', 'cliente dice que esta caro').
-        momento: Filtro opcional del momento de venta:
-                 apertura | informacion | precio | objecion | cierre | postventa.
+        momento: Filtro opcional del momento de venta. Valores validos:
+                 'apertura'    - saludo y primer contacto
+                 'informacion' - dudas de empresa, horarios, envios, tallas, garantia
+                 'precio'      - mayoreo, precios, recepcion del pedido
+                 'objecion'    - esta caro, agotado, dudas para comprar
+                 'cierre'      - cotizacion lista, forma de pago, facturacion
+                 'postventa'   - guia, seguimiento, quejas
     """
     playbook, politicas, faq = _cargar()
     consulta = _tokens(situacion)
