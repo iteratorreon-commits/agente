@@ -17,6 +17,7 @@ flujo en ManyChat debe ser solo: Default Reply -> Solicitud externa (sin paso de
 from __future__ import annotations
 
 import base64
+import re
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
@@ -31,6 +32,36 @@ from .transcribe import transcribir
 app = FastAPI(title="Agente Vendedor WhatsApp — ITERA")
 
 _TIPOS_IMG = ("image/jpeg", "image/png", "image/gif", "image/webp")
+_URL_SOLA = re.compile(r"^https?://\S+$")
+
+
+def _es_url_sola(texto: str) -> bool:
+    """True si el texto es UNA sola URL (sin nada mas)."""
+    return bool(_URL_SOLA.match((texto or "").strip()))
+
+
+def _tipo_media(url: str) -> str:
+    """Clasifica una URL por su content-type: 'image' | 'audio' | 'video' | 'other'.
+
+    ManyChat mete la URL del archivo en 'Ultima entrada de texto' cuando el cliente manda
+    media en WhatsApp (imagen/audio/video), incluso en Default Reply. Aqui la clasificamos
+    para enrutarla bien. Usa HEAD (barato); si el CDN no responde HEAD, cae a un GET.
+    """
+    try:
+        r = httpx.head(url, timeout=15, follow_redirects=True)
+        ct = r.headers.get("content-type", "").split(";")[0].strip().lower()
+        if not ct:
+            r = httpx.get(url, timeout=20, follow_redirects=True)
+            ct = r.headers.get("content-type", "").split(";")[0].strip().lower()
+    except httpx.HTTPError:
+        return "other"
+    if ct.startswith("image/"):
+        return "image"
+    if ct.startswith("audio/"):
+        return "audio"
+    if ct.startswith("video/"):
+        return "video"
+    return "other"
 
 
 def _bloque_imagen(url: str) -> dict:
@@ -116,6 +147,19 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
     """
     # Deja el subscriber_id disponible a las tools que envian media (fotos) al cliente.
     request_context.current_subscriber_id.set(subscriber_id)
+
+    # ManyChat NO expone la imagen como campo aparte: cuando el cliente manda media en
+    # WhatsApp, mete la URL del archivo dentro de 'Ultima entrada de texto' (el campo
+    # 'text'). Si el "texto" es en realidad una sola URL de media, la reenrutamos como
+    # imagen o audio. Es seguro: con texto normal, _es_url_sola es False y no hace nada.
+    if texto and not image_url and not audio_url and _es_url_sola(texto):
+        tipo = _tipo_media(texto)
+        print(f"MEDIA detectada tipo={tipo} url={texto.strip()[:200]}", flush=True)
+        if tipo == "image":
+            image_url, texto = texto.strip(), ""
+        elif tipo == "audio":
+            audio_url, texto = texto.strip(), ""
+        # 'video'/'other': se deja como esta; el agente pedira el dato por texto.
 
     # Audio -> transcripcion (se trata como texto del cliente).
     if audio_url:
