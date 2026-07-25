@@ -26,6 +26,18 @@ from ..request_context import current_subscriber_id
 # El stock puede vivir en ubicaciones hijas (racks) -> consolidar por prefijo de complete_name.
 PREFIJOS_SUCURSAL = ("JZ/", "MZ/", "AC/", "MER/")
 
+# Palabras vacias que NO deben exigirse en la busqueda (ej. "blusa DE encaje").
+_STOPWORDS = {
+    "de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "con",
+    "para", "por", "y", "o", "en", "al", "que", "mi", "su", "sus", "tu",
+}
+
+
+def _tokens(query: str) -> list[str]:
+    """Parte la busqueda en palabras utiles (sin stopwords, min 2 chars)."""
+    toks = [t for t in (query or "").lower().split() if len(t) >= 2 and t not in _STOPWORDS]
+    return toks or ([query.strip()] if query and query.strip() else [])
+
 
 def _norm(v: Any) -> Any:
     """Odoo devuelve False para vacios; lo convierte a '' para texto."""
@@ -110,20 +122,29 @@ def buscar_catalogo(
         color: Filtro opcional de color (ej. 'rojo', 'blanco').
         limit: Maximo de productos a devolver (default 8).
     """
+    # Busqueda por PALABRAS, no por la frase completa: el cliente dice "falda lisa"
+    # pero en Odoo es "FALDA TRADICIONAL LISA" (el ilike de la frase no la encuentra).
+    # 1) AND de tokens (todas las palabras deben aparecer) -> match preciso.
+    # 2) Si no hay, OR de tokens (cualquier palabra) -> alternativas para no dejar al
+    #    cliente sin opciones (regla: nunca solo "no hay").
+    lim = max(1, min(limit, 20))
+    base = [["active", "=", True], ["sale_ok", "=", True], ["is_published", "=", True]]
+    tokens = _tokens(query)
+    modo = "exacto"
     try:
-        domain = [
-            ["active", "=", True],
-            ["sale_ok", "=", True],
-            ["is_published", "=", True],
-            ["name", "ilike", query],
-        ]
+        dom_and = base + [["name", "ilike", t] for t in tokens]
         productos = odoo.search_read(
-            "product.template",
-            domain,
-            fields=["id", "name", "default_code"],
-            limit=max(1, min(limit, 20)),
-            order="name asc",
+            "product.template", dom_and,
+            fields=["id", "name", "default_code"], limit=lim, order="name asc",
         )
+        if not productos and len(tokens) > 1:
+            or_group = ["|"] * (len(tokens) - 1) + [["name", "ilike", t] for t in tokens]
+            dom_or = ["&"] * len(base) + base + or_group
+            productos = odoo.search_read(
+                "product.template", dom_or,
+                fields=["id", "name", "default_code"], limit=lim, order="name asc",
+            )
+            modo = "aproximado"
     except OdooError as exc:
         return f"ERROR_ODOO: {exc}. No pude consultar el catalogo; escala o reintenta."
 
@@ -187,9 +208,18 @@ def buscar_catalogo(
 
     import json
 
+    nota_match = (
+        "coincidencia EXACTA con lo que pidio el cliente."
+        if modo == "exacto"
+        else "NO hubo match exacto; estos son APROXIMADOS (coinciden con alguna palabra). "
+        "Ofrecelos como alternativas ('no tengo tal cual X, pero mira estos parecidos'), "
+        "no como el producto exacto."
+    )
     return json.dumps(
         {
             "productos": lineas,
+            "_match": modo,
+            "_nota_match": nota_match,
             "_nota_precio": (
                 "Los precios NO vienen en esta busqueda (Odoo los calcula por lista de precios). "
                 "El precio real se obtiene al crear la cotizacion con crear_cotizacion. Recuerda: "
