@@ -14,18 +14,48 @@ y sabe cuándo escalar a Benny en vez de improvisar.
 Cliente WhatsApp → ManyChat (External Request, header x-itera-token)
     → FastAPI /manychat/inbound
         → gate determinista (pago / queja)  [escalation_rules.py]
-        → memoria de sesión                  [session_store.py, SQLite]
+        → transcripción íntegra + ficha      [session_store.py, ficha.py, SQLite]
         → agente (Tool Runner + Sonnet 5)    [agent.py]
-             tools: buscar_catalogo, consultar_stock, crear_cotizacion (Odoo)
+             tools: buscar_catalogo, consultar_stock, crear_cotizacion,
+                    consultar_cotizacion, modificar_cotizacion,
+                    reenviar_cotizacion, enviar_fotos_producto (Odoo)
+                    anotar_pedido (ficha)
                     cotizar_envio (envia.com)
                     consultar_playbook (knowledge/)
-                    escalar_a_benny, notificar_pago_multiple (ManyChat Send API)
+                    escalar_a_benny, notificar_pago_multiple (Telegram)
         → bitácora de decisiones             [decision_log.py, JSONL]
     → respuesta a ManyChat
+
+Equipo ITERA → Telegram /telegram/inbound
+    → "APRENDE: <regla>"              → conocimiento permanente [aprendizajes.py]
+    → "CLIENTE <id>: <instrucción>"    → el agente actúa sobre ese cliente
 ```
 
 Entrada multimodal: **texto**, **imágenes** (visión nativa de Claude — foto de producto,
 referencia o comprobante) y **audio** (transcripción, `transcribe.py`).
+
+## Memoria del agente
+
+Dos piezas distintas, a propósito:
+
+- **`mensajes`** — transcripción append-only, una fila por mensaje. El código nunca borra de
+  ahí. `AGENTE_MAX_MENSAJES` (default 40) solo limita cuántos se le reenvían al modelo.
+- **`conversations.ficha`** — estado estructurado (pedido en curso, cotización vigente con su
+  folio y total reales, modelos ya mostrados con su `template_id`, CP y datos del cliente).
+  Sobrevive al recorte de la ventana y se le reinyecta cada turno como `<estado_conversacion>`.
+  Los datos duros los escriben las tools de forma **determinista**, no dependen de que el
+  modelo se acuerde de anotarlos.
+
+Regla: **la ficha va en `messages`, nunca en el `system`.** El system es el prefijo cacheado e
+idéntico para todos los clientes; meter datos por cliente ahí rompería el prompt caching.
+
+## Cotizaciones
+
+El agente **lee** de Odoo la cotización que creó (`consultar_cotizacion`), la **reenvía**
+(`reenviar_cotizacion`) y puede **ajustarla** (`modificar_cotizacion`) mientras esté en
+borrador: valida existencia real por variante, recalcula el total y la regla de envío gratis, le
+reenvía la foto actualizada al cliente y espeja el cambio a Telegram. Si la orden ya está
+confirmada, se niega y manda escalar. Nunca afirma folio, total ni precio de memoria.
 
 ## Correr localmente
 
@@ -34,8 +64,14 @@ python -m venv .venv && source .venv/Scripts/activate   # Windows Git Bash
 pip install -r requirements.txt
 cp .env.example .env      # y rellenar los valores reales
 
-# Harness de conversación por consola (Fase 2, sin WhatsApp):
+# Harness de conversación por consola (sin WhatsApp):
 python -m tests.harness_cli
+
+# Pruebas de memoria y cotizaciones (no manda nada real, DB temporal, solo lee Odoo):
+python -m tests.pruebas_memoria          # las 8; o un subconjunto: ... 1 3 7
+
+# Pruebas de capacidades con el modelo (la 3 crea un borrador real en Odoo):
+python -m tests.pruebas_capacidades
 
 # Servicio web:
 uvicorn src.main:app --reload --port 8000

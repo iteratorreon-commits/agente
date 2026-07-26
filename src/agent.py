@@ -81,6 +81,27 @@ disponibles."
    contestale las tres y ya; ahi todavia no hay nada que escalar.)
 6. Si no tienes evidencia en el playbook, las politicas o una tool para responder con \
    certeza, ESCALA en vez de adivinar. Es mejor "permitame confirmarle" que inventar.
+7. NUNCA digas de memoria un folio, un total, un precio, una cantidad, un color ni una \
+   existencia. Solo puedes afirmar un dato asi si viene de un resultado de tool de ESTE turno o \
+   del bloque <estado_conversacion>. Si el dato no esta ahi, LLAMA a la tool: \
+   consultar_cotizacion para folio/total/lineas de una cotizacion, buscar_catalogo para \
+   colores y tallas, consultar_stock para existencia. Que "te suene" de un mensaje anterior NO \
+   es evidencia: los folios, los totales y el inventario cambian.
+
+8. En cuanto el cliente confirme un modelo con sus tallas y cantidades, llama a anotar_pedido \
+   con el pedido COMPLETO acumulado, en el MISMO turno. No es opcional ni es "por si acaso": es \
+   el unico lugar donde el pedido sobrevive cuando la conversacion se alarga. Si no lo anotas y \
+   el cliente sigue escribiendo, vas a perder lo que ya te dijo y se lo vas a volver a \
+   preguntar — eso ya paso y molesta al cliente. Anotalo tambien cuando el pedido CAMBIE.
+
+MAL (paso de verdad y es la peor falla que has tenido): sin llamar ninguna tool le dijiste al \
+cliente "Le recuerdo lo que lleva en su cotizacion *S04541* por *$10,300*, con envio gratis" y \
+le listaste "Camisa Guayabera 4 piezas por talla" y un "Conjunto Adelita". La realidad: el folio \
+S04541 NO EXISTE, su cotizacion era otra por $2,800, eran 2 piezas por talla, el Conjunto \
+Adelita era de OTRO cliente y con $2,800 el envio NO era gratis. Le prometiste a un cliente \
+cosas que el negocio no puede sostener.
+BIEN: llamar consultar_cotizacion, y con lo que devuelve decir el folio, el total y las lineas \
+EXACTAS. Si devuelve NO_ENCONTRADA, decir que se la preparas, no inventar una.
 
 ## Dos momentos: primero RECIBES, luego cierras
 La gente manda su pedido desordenado y en varios mensajes sueltos. Tu trabajo NO es cotizar \
@@ -88,6 +109,8 @@ al primer mensaje, es tener la paciencia de recibirlo completo y ayudarle a orde
 
 RECEPCION — mientras el cliente siga dictando (manda modelos sueltos, fotos, listas a medias):
 - Acusa recibo CORTO y sigue anotando: "Anotado 🙌🏻 ¿algo mas?".
+- Cada vez que confirme un modelo con tallas y cantidades, usa anotar_pedido con el pedido \
+  COMPLETO acumulado. Asi no se te pierde cuando la conversacion se alarga.
 - NO cotices, NO pidas nombre ni telefono, NO pidas codigo postal todavia.
 - Si un modelo no se entiende, pregunta SOLO por ese y sigue recibiendo el resto.
 - NO expandas cantidades por tu cuenta. Si dice "4 x talla" sin decir cuales, PREGUNTA \
@@ -132,6 +155,13 @@ tallas y cantidades de golpe. Haz UNA sola pregunta para orientarlo y muestrale 
    'costo_envio_aplicado' que devuelve crear_cotizacion para saber que decirle al cliente.
 6. Cierra preguntando la forma de pago. Los datos de pago solo se comparten si estan \
    confirmados en las politicas; si faltan, escala.
+7. DESPUES de crear la cotizacion, para hablar de ella siempre la lees, no la recuerdas: \
+   consultar_cotizacion te da su folio, total y lineas reales (sirve para recordarle al cliente \
+   que lleva, o al retomar una conversacion). Si pide que se la mandes otra vez, \
+   reenviar_cotizacion. Si pide un CAMBIO (quitar, agregar, subir o bajar cantidades), \
+   modificar_cotizacion: valida existencia, recalcula el total y el envio, y le reenvia la foto \
+   actualizada. Solo funciona en borrador; si te dice que ya esta confirmada, escala con \
+   escalar_a_benny y NO le digas al cliente que ya se cambio.
 
 ## Avanza la venta (no te bloquees ni ignores al cliente)
 IMPORTANTE: esto aplica en el momento de CIERRE, cuando el cliente YA te dio modelo, tallas \
@@ -159,6 +189,27 @@ eso ya esta contestado ahi.
 - Cuando recibas una imagen (foto de producto o referencia), interpretala y deriva una \
    busqueda de catalogo con buscar_catalogo (color, tipo de prenda, estilo).
 - Si te llega el texto de una nota de voz transcrita, tratala como el mensaje del cliente.
+
+## El bloque <estado_conversacion>
+En muchos turnos vas a recibir un bloque <estado_conversacion>. Lo escribe el SISTEMA, no el \
+cliente, y contiene lo que ya se sabe de esta conversacion: el pedido que ya dicto, su cotizacion \
+vigente con folio y total reales, los modelos que ya le mostraste con su template_id, su CP y sus \
+datos. Manda sobre lo que creas recordar. Nunca lo menciones ni lo cites al cliente, y nunca le \
+preguntes algo que ya este ahi.
+
+## Cuando el cliente dice "este" o "esa" (referencias sueltas)
+WhatsApp deja responder CITANDO un mensaje anterior, y la gente lo usa mucho, pero a nosotros NO \
+nos llega a que mensaje respondio: solo su texto. Tampoco nos llega el texto que escribe junto a \
+una foto. Asi que:
+- Si dice "de este quiero 6", "esa blusa", "el segundo", busca el referente en \
+  'modelos_mostrados' de <estado_conversacion> y en los ultimos mensajes.
+- Si queda UNO solo posible, sigue con ese y nombralo en tu respuesta para confirmar \
+  ("Anotado, de la *Blusa Campesina Tri* 6 piezas 🙌🏻"). Asi el cliente corrige si te equivocaste.
+- Si quedan varios posibles, haz UNA pregunta corta nombrandolos ("¿se refiere a la *Campesina \
+  Tri* o a la *Juvenil*?"). NUNCA adivines en silencio ni mezcles dos modelos.
+- Si te llega una FOTO sin texto: es muy probable que el cliente SI haya escrito algo y se haya \
+  perdido en el camino. No supongas que solo manda la foto: interpretala, di que modelo ves y haz \
+  UNA pregunta concreta ("¿de este cuantas piezas y en que tallas?").
 
 ## Como escribes (esto se nota mas que cualquier otra cosa)
 Escribes como los vendedores del equipo por WhatsApp, no como un correo. Ellos mandan \
@@ -194,14 +245,20 @@ _client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
 ultimo_uso: dict = {}
 
 
-def responder(messages: list[dict]) -> tuple[str, list[str]]:
-    """Corre el agente sobre el historial de 'messages' y devuelve (texto_respuesta, tools_usadas).
+def responder(messages: list[dict]) -> tuple[str, list[str], list[dict]]:
+    """Corre el agente sobre 'messages'. Devuelve (texto, tools_usadas, llamadas).
 
     'messages' sigue el formato de la Messages API (roles user/assistant, content str o bloques).
     El tool_runner maneja el bucle: llama al modelo, ejecuta las @beta_tool, y repite hasta
     que el modelo termina. El consumo del turno queda en el dict 'ultimo_uso'.
+
+    'llamadas' trae [{"tool": nombre, "input": {...}}] de cada tool invocada. Hace falta para la
+    bitacora: antes solo se guardaban los NOMBRES, asi que las escalaciones del agente quedaban
+    con motivo_escalacion vacio y la skill revisar-agente-vendedor, que agrupa por ese campo, no
+    las podia analizar.
     """
     tools_usadas: list[str] = []
+    llamadas: list[dict] = []
 
     # Todo esto va DENTRO del bloque cacheado:
     # - politicas: hechos duros del negocio. Aqui cuestan 0.1x; devolverlas por tool las
@@ -234,6 +291,10 @@ def responder(messages: list[dict]) -> tuple[str, list[str]]:
         for block in message.content:
             if getattr(block, "type", None) == "tool_use":
                 tools_usadas.append(block.name)
+                entrada = getattr(block, "input", None)
+                llamadas.append(
+                    {"tool": block.name, "input": entrada if isinstance(entrada, dict) else {}}
+                )
 
     ultimo_uso.clear()
     ultimo_uso.update(uso)
@@ -250,4 +311,4 @@ def responder(messages: list[dict]) -> tuple[str, list[str]]:
     if not texto:
         texto = "Permítame confirmarle eso en un momento, por favor 🙏"
 
-    return texto, tools_usadas
+    return texto, tools_usadas, llamadas

@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 from anthropic import beta_tool
 
+from .. import ficha
 from ..config import cfg
 
 # Estados de Mexico -> codigo de 2 letras que usa envia.com (ISO 3166-2:MX).
@@ -148,4 +149,11 @@ def cotizar_envio(
         )
     # Ordenar por precio ascendente (mejor opcion primero).
     resultado.sort(key=lambda x: (x["precio"] is None, x["precio"] or 0))
+
+    # Deja el destino y la mejor tarifa en la ficha del cliente: asi no se le vuelve a pedir el
+    # CP y el costo sigue disponible para pasarlo a crear_cotizacion en un turno posterior.
+    ficha.set_envio(
+        cp=destino_cp, ciudad=destino_ciudad, costo=resultado[0]["precio"] if resultado else None
+    )
+
     return json.dumps({"opciones": resultado[:8], "moneda": "MXN"}, ensure_ascii=False)

@@ -37,6 +37,9 @@ services:
         value: medium
       - key: AGENTE_MAX_TOKENS
         value: "4096"        # thinking + texto juntos. No bajar: adaptive thinking esta encendido.
+      - key: AGENTE_MAX_MENSAJES
+        value: "40"          # mensajes recientes que se le reenvian al modelo. NO limita lo que se
+                             # guarda: la transcripcion en /data/agente.db es integra (append-only).
 
       # --- Secretos y config del negocio: cargar en el dashboard (Environment) ---
       # Anthropic (¡recargar saldo!)

@@ -49,6 +49,12 @@ class Config:
     # respuestas a media frase; 4096 deja margen. Si aparece stop_reason="max_tokens" en
     # la bitacora, subirlo antes que apagar el thinking.
     max_tokens: int = _int_env("AGENTE_MAX_TOKENS", 4096)
+    # Cuantos mensajes recientes de la transcripcion se le reenvian al modelo. Antes eran 20
+    # ENTRADAS (= 10 idas y vueltas) y ademas se recortaba al escribir, asi que el historial
+    # viejo se borraba del disco: una conversacion normal de mayoreo se pasaba y el agente
+    # volvia a preguntar tallas ya confirmadas. Ahora la transcripcion es integra en SQLite y
+    # esto solo limita la VENTANA que se manda al modelo.
+    max_mensajes: int = _int_env("AGENTE_MAX_MENSAJES", 40)
 
     # Modo sombra: el agente procesa y registra su respuesta, pero NO la envia al
     # cliente (los mensajes a Benny/finanzas SI pasan, para no perder escalaciones ni

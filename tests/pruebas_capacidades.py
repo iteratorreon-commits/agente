@@ -28,14 +28,29 @@ def _stub_enviar_mensaje(subscriber_id: str, texto: str, imagen_url: str | None 
     return {"ok": True, "detalle": "STUB (no enviado real)"}
 
 
+def _stub_enviar_telegram(texto: str, chat_id: str = "", imagen_url: str = "") -> dict:
+    _ENVIOS.append({"a": f"telegram:{chat_id or 'benny'}", "texto": texto, "imagen_url": imagen_url})
+    return {"ok": True, "detalle": "STUB (no enviado real)"}
+
+
 # Parchar en TODOS los modulos que ya importaron el nombre.
 import src.manychat_api as _mc_api  # noqa: E402
+import src.telegram_api as _tg_api  # noqa: E402
 import src.tools.odoo_tools as _odoo_tools  # noqa: E402
 import src.tools.manychat_tools as _mc_tools  # noqa: E402
 
 _mc_api.enviar_mensaje = _stub_enviar_mensaje
 _odoo_tools.enviar_mensaje = _stub_enviar_mensaje
 _mc_tools.enviar_mensaje = _stub_enviar_mensaje
+# Telegram tambien: modificar_cotizacion espeja el cambio a Benny, y escalar/notificar pago van
+# por ahi. Sin este parche una prueba le manda mensajes de verdad al equipo.
+_tg_api.enviar_telegram = _stub_enviar_telegram
+_odoo_tools.enviar_telegram = _stub_enviar_telegram
+_mc_tools.enviar_telegram = _stub_enviar_telegram
+_mc_tools.difundir = lambda texto, imagen_url="": (
+    _stub_enviar_telegram(texto, imagen_url=imagen_url)
+    and {"enviados": ["stub"], "fallidos": [], "total": 1}
+)
 
 import base64  # noqa: E402
 
@@ -123,7 +138,7 @@ def _correr_turno(messages: list[dict], texto: str, image_url: str = "") -> dict
 
     messages.append({"role": "user", "content": contenido})
     t0 = time.time()
-    respuesta, tools = responder(messages)
+    respuesta, tools, _llamadas = responder(messages)
     seg = time.time() - t0
     # Entrega al cliente (stub) como en produccion.
     _stub_enviar_mensaje(SID_CLIENTE, respuesta)

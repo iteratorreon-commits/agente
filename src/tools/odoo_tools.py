@@ -17,10 +17,13 @@ from typing import Any
 import httpx
 from anthropic import beta_tool
 
+from .. import ficha as ficha_mod
+from .. import session_store
 from ..config import cfg
 from ..manychat_api import enviar_mensaje
 from ..odoo_client import OdooError, odoo
 from ..request_context import current_subscriber_id
+from ..telegram_api import enviar_telegram
 
 # IDs de sucursal/ubicacion verificados 2026-07-12 (usage=internal).
 # El stock puede vivir en ubicaciones hijas (racks) -> consolidar por prefijo de complete_name.
@@ -142,6 +145,136 @@ def _resolver_variantes(lineas: list[dict]) -> tuple[list, list]:
 def _norm(v: Any) -> Any:
     """Odoo devuelve False para vacios; lo convierte a '' para texto."""
     return "" if v is False else v
+
+
+def _nombre_partner(nombre: str) -> str:
+    """Nombre usable para el contacto de Odoo.
+
+    En produccion quedo un res.partner llamado literalmente '🥰' (partner 20621, orden S04552):
+    el modelo tomo como nombre lo que el cliente habia escrito. Si no hay ninguna letra, se
+    cae a un nombre identificable por el subscriber de WhatsApp.
+    """
+    limpio = (nombre or "").strip()
+    if any(c.isalpha() for c in limpio):
+        return limpio[:120]
+    sid = current_subscriber_id.get()
+    return f"Cliente WhatsApp {sid}" if sid else "Cliente WhatsApp"
+
+
+def _leer_orden(order_id: int) -> dict | None:
+    """Lee una sale.order con sus lineas reales. None si no existe."""
+    filas = odoo.search_read(
+        "sale.order",
+        [["id", "=", int(order_id)]],
+        fields=[
+            "name", "state", "partner_id", "amount_untaxed", "amount_total",
+            "carrier_id", "date_order", "note",
+        ],
+        limit=1,
+    )
+    if not filas:
+        return None
+    orden = filas[0]
+    orden["lineas"] = odoo.search_read(
+        "sale.order.line",
+        [["order_id", "=", int(order_id)]],
+        fields=["id", "name", "product_id", "product_uom_qty", "price_unit", "price_subtotal", "is_delivery"],
+        limit=200,
+        order="id asc",
+    )
+    return orden
+
+
+def _buscar_orden(folio: str = "", order_id: int = 0, telefono: str = "") -> dict | None:
+    """Resuelve a que sale.order se refiere el agente, en orden de confiabilidad.
+
+    1. order_id o folio explicitos (lo que devolvio una tool).
+    2. La cotizacion vigente de la ficha del cliente.
+    3. La tabla de enlace subscriber -> order (lo que este agente le creo a este cliente).
+    4. La ultima orden del partner por telefono.
+    """
+    if order_id:
+        return _leer_orden(int(order_id))
+    if folio:
+        filas = odoo.search_read(
+            "sale.order", [["name", "=", folio.strip().upper()]], fields=["id"], limit=1
+        )
+        return _leer_orden(filas[0]["id"]) if filas else None
+
+    sid = current_subscriber_id.get()
+    if sid:
+        vigente = (session_store.cargar_ficha(sid).get("cotizacion_vigente") or {}).get("order_id")
+        if vigente:
+            orden = _leer_orden(int(vigente))
+            if orden:
+                return orden
+        for reg in session_store.cotizaciones_de(sid):
+            orden = _leer_orden(int(reg["order_id"]))
+            if orden:
+                return orden
+
+    if telefono:
+        partners = odoo.search_read(
+            "res.partner",
+            ["|", ["phone", "=", telefono], ["mobile", "=", telefono]],
+            fields=["id"],
+            limit=1,
+        )
+        if partners:
+            filas = odoo.search_read(
+                "sale.order",
+                [["partner_id", "=", partners[0]["id"]]],
+                fields=["id"],
+                limit=1,
+                order="id desc",
+            )
+            if filas:
+                return _leer_orden(filas[0]["id"])
+    return None
+
+
+def _imagen_existente(order_id: int) -> str:
+    """URL de la foto de la cotizacion ya generada, si existe (evita re-renderizar el PDF)."""
+    try:
+        att = odoo.search_read(
+            "ir.attachment",
+            [
+                ["res_model", "=", "sale.order"],
+                ["res_id", "=", int(order_id)],
+                ["mimetype", "=", "image/png"],
+                ["public", "=", True],
+            ],
+            fields=["id"],
+            limit=1,
+            order="id desc",
+        )
+    except OdooError:
+        return ""
+    return f"{cfg.odoo_url.rstrip('/')}/web/image/{att[0]['id']}" if att else ""
+
+
+def _payload_orden(orden: dict) -> dict:
+    """Normaliza una orden leida de Odoo para devolverla al modelo."""
+    return {
+        "folio": _norm(orden.get("name")),
+        "order_id": orden["id"] if "id" in orden else None,
+        "estado": _norm(orden.get("state")),
+        "cliente": (orden["partner_id"][1] if orden.get("partner_id") else ""),
+        "subtotal_sin_impuestos": orden.get("amount_untaxed"),
+        "total": orden.get("amount_total"),
+        "fecha": _norm(orden.get("date_order")),
+        "lineas": [
+            {
+                "line_id": l["id"],
+                "descripcion": _norm(l.get("name")),
+                "cantidad": l.get("product_uom_qty"),
+                "precio_unitario": l.get("price_unit"),
+                "subtotal": l.get("price_subtotal"),
+                "es_envio": bool(l.get("is_delivery")),
+            }
+            for l in orden.get("lineas") or []
+        ],
+    }
 
 
 def _imagen_url(template_id: int) -> str:
@@ -308,6 +441,12 @@ def buscar_catalogo(
 
     import json
 
+    # Deja los modelos (con su template_id, tallas y colores REALES) en la ficha del cliente.
+    # Es determinista a proposito: si dependiera de que el modelo se acuerde de anotarlos, al
+    # siguiente turno volveria a inventar colores como paso en produccion ("veo que en el
+    # catalogo hay tambien negro y rosa" con tools_invocadas: []).
+    ficha_mod.agregar_modelos(lineas)
+
     nota_match = (
         "coincidencia EXACTA con lo que pidio el cliente."
         if modo == "exacto"
@@ -373,6 +512,13 @@ def consultar_stock(template_id: int) -> str:
                 key = pref.rstrip("/")
                 por_sucursal[key] = por_sucursal.get(key, 0) + disponible
                 break
+
+    # Respaldo DETERMINISTA de la ficha: si el agente consulto existencia de este modelo, es el
+    # que esta sobre la mesa. anotar_pedido lo decide el modelo y a veces no lo llama, asi que al
+    # menos la identidad del producto queda registrada sin depender de eso.
+    nombre_tmpl = str(variantes[0].get("display_name") or "").split(" (")[0].strip()
+    if nombre_tmpl:
+        ficha_mod.agregar_modelos([{"template_id": template_id, "nombre": nombre_tmpl}])
 
     total = sum(por_sucursal.values())
     # Etiqueta honesta de escasez (no numeros crudos al LLM->cliente).
@@ -446,7 +592,7 @@ def crear_cotizacion(
         else:
             partner_id = odoo.create(
                 "res.partner",
-                {"name": cliente_nombre or "Cliente WhatsApp", "phone": cliente_telefono},
+                {"name": _nombre_partner(cliente_nombre), "phone": cliente_telefono},
             )
 
         # Resolver la VARIANTE exacta (talla+color) de cada linea y verificar existencia
@@ -527,6 +673,21 @@ def crear_cotizacion(
     if imagen_url and sid:
         imagen_enviada = bool(enviar_mensaje(sid, "", imagen_url=imagen_url).get("ok"))
 
+    # Dejar constancia de que esta orden es de este cliente de WhatsApp, y guardar folio/total
+    # en la ficha. Sin esto el agente no tiene de donde leer su propia cotizacion al turno
+    # siguiente y termina recitando de memoria un folio que no existe (caso real: S04541).
+    if sid:
+        session_store.registrar_cotizacion(sid, order_id, nombre)
+    ficha_mod.set_cotizacion(
+        folio=nombre,
+        order_id=order_id,
+        total=total,
+        estado="draft",
+        pdf_url=pdf_url,
+        imagen_url=imagen_url,
+    )
+    ficha_mod.set_cliente(nombre=cliente_nombre, telefono=cliente_telefono)
+
     return json.dumps(
         {
             "numero_orden": nombre,
@@ -557,6 +718,358 @@ def crear_cotizacion(
         },
         ensure_ascii=False,
     )
+
+
+@beta_tool
+def consultar_cotizacion(folio: str = "", order_id: int = 0, telefono: str = "") -> str:
+    """Lee de Odoo una cotizacion ya creada, con su folio, total y TODAS sus lineas reales.
+
+    Usala SIEMPRE antes de hablarle al cliente de su cotizacion: para recordarle que lleva,
+    confirmarle el total, revisar si falta algo o antes de modificarla. Sin argumentos toma la
+    cotizacion vigente de esta conversacion.
+
+    Esta tool es la UNICA fuente valida del folio, el total y las lineas. NUNCA los digas de
+    memoria: el folio y el monto cambian, y un dato inventado le promete al cliente algo que el
+    negocio no va a sostener.
+
+    Args:
+        folio: Numero de la cotizacion (ej. 'S04552'). Opcional.
+        order_id: Id interno de la orden, si lo tienes de otra tool. Opcional.
+        telefono: Telefono del cliente, para buscar su ultima orden. Opcional.
+    """
+    import json
+
+    try:
+        orden = _buscar_orden(folio=folio, order_id=order_id, telefono=telefono)
+    except OdooError as exc:
+        return f"ERROR_ODOO: {exc}. No pude leer la cotizacion; escala o reintenta."
+
+    if not orden:
+        pedido = folio or (f"order_id {order_id}" if order_id else "esta conversacion")
+        return (
+            f"NO_ENCONTRADA: no existe ninguna cotizacion para {pedido}. NO inventes un folio "
+            "ni un total. Si el cliente cree tener una cotizacion, pidele el folio o escala; si "
+            "todavia no se le ha creado, dile que se la preparas y usa crear_cotizacion."
+        )
+
+    datos = _payload_orden(orden)
+    oid = orden["id"]
+    pdf_url = _pdf_cotizacion_url(oid)
+    imagen_url = _imagen_existente(oid)
+    confirmada = datos["estado"] not in ("draft", "sent")
+
+    # Refresca la ficha con los datos REALES (pueden haber cambiado desde que se creo).
+    ficha_mod.set_cotizacion(
+        folio=datos["folio"],
+        order_id=oid,
+        total=datos["total"],
+        estado=datos["estado"],
+        pdf_url=pdf_url,
+        imagen_url=imagen_url,
+    )
+
+    datos.update(
+        {
+            "order_id": oid,
+            "pdf_url": pdf_url,
+            "imagen_cotizacion_url": imagen_url,
+            "modificable": not confirmada,
+            "_instruccion": (
+                "Estos son los datos REALES de Odoo. Usa EXACTAMENTE este folio, este total y "
+                "estas lineas; no los redondees ni los completes con nada que recuerdes. Las "
+                "lineas con es_envio=true son el costo de envio, no producto. "
+                + (
+                    "La cotizacion YA ESTA CONFIRMADA: no se puede modificar; si el cliente "
+                    "quiere cambios, escala con escalar_a_benny."
+                    if confirmada
+                    else "Esta en borrador: si el cliente pide cambios, usa modificar_cotizacion."
+                )
+            ),
+        }
+    )
+    return json.dumps(datos, ensure_ascii=False)
+
+
+@beta_tool
+def reenviar_cotizacion(folio: str = "", order_id: int = 0) -> str:
+    """Reenvia al cliente por WhatsApp la FOTO de una cotizacion ya creada.
+
+    Usala cuando el cliente pide que le mandes otra vez su cotizacion, cuando dice que no le
+    llego, o al retomar una conversacion. No crea nada nuevo ni cambia el pedido.
+
+    Args:
+        folio: Numero de la cotizacion (ej. 'S04552'). Sin argumentos usa la de esta conversacion.
+        order_id: Id interno de la orden, si lo tienes. Opcional.
+    """
+    import json
+
+    sid = current_subscriber_id.get()
+    if not sid:
+        return "NO_ENVIADO: sin destinatario en contexto."
+    try:
+        orden = _buscar_orden(folio=folio, order_id=order_id)
+    except OdooError as exc:
+        return f"ERROR_ODOO: {exc}. No pude leer la cotizacion; escala o reintenta."
+    if not orden:
+        return (
+            "NO_ENCONTRADA: no hay ninguna cotizacion que reenviar. NO inventes un folio; "
+            "pregunta al cliente el folio o armale una nueva con crear_cotizacion."
+        )
+
+    oid = orden["id"]
+    nombre = _norm(orden.get("name")) or str(oid)
+    pdf_url = _pdf_cotizacion_url(oid)
+    # Reutiliza la foto ya generada; solo re-renderiza si no existe.
+    imagen_url = _imagen_existente(oid) or _imagen_cotizacion_url(oid, pdf_url, nombre)
+    if not imagen_url:
+        return json.dumps(
+            {
+                "imagen_enviada": False,
+                "folio": nombre,
+                "pdf_url": pdf_url,
+                "_instruccion": "No se pudo generar la foto. Comparte al menos el pdf_url.",
+            },
+            ensure_ascii=False,
+        )
+
+    enviada = bool(enviar_mensaje(sid, "", imagen_url=imagen_url).get("ok"))
+    return json.dumps(
+        {
+            "imagen_enviada": enviada,
+            "folio": nombre,
+            "total": orden.get("amount_total"),
+            "estado": _norm(orden.get("state")),
+            "pdf_url": pdf_url,
+            "_instruccion": (
+                "Si imagen_enviada=true, ya le llego la foto de su cotizacion: confirmaselo "
+                "usando este folio y este total, no otros."
+            ),
+        },
+        ensure_ascii=False,
+    )
+
+
+def _recalcular_envio(order_id: int, costo_envio: float = 0.0) -> dict:
+    """Ajusta la linea de envio de la orden segun la regla de envio gratis.
+
+    Se llama despues de cambiar productos: si el subtotal cruzo el umbral, el envio que estaba
+    cobrado hay que QUITARLO (y al reves). Sin esto, modificar una cotizacion dejaba un envio
+    cobrado sobre un pedido que ya calificaba para envio gratis.
+    """
+    lineas = odoo.search_read(
+        "sale.order.line",
+        [["order_id", "=", int(order_id)]],
+        fields=["id", "price_subtotal", "is_delivery", "price_unit"],
+        limit=200,
+    )
+    linea_envio = next((l for l in lineas if l.get("is_delivery")), None)
+    subtotal_productos = sum(
+        (l.get("price_subtotal") or 0) for l in lineas if not l.get("is_delivery")
+    )
+    umbral = _umbral_envio_gratis()
+    gratis = subtotal_productos > umbral
+
+    # Costo a aplicar: el que se pase, o el que ya tenia la linea de envio.
+    costo = float(costo_envio or 0) or float((linea_envio or {}).get("price_unit") or 0)
+
+    if gratis and linea_envio:
+        odoo.execute_kw("sale.order.line", "unlink", [[linea_envio["id"]]])
+        return {"envio_gratis": True, "costo_envio_aplicado": 0.0}
+    if not gratis and costo > 0:
+        if linea_envio:
+            odoo.execute_kw(
+                "sale.order.line", "write", [[linea_envio["id"]], {"price_unit": costo}]
+            )
+        else:
+            odoo.execute_kw("sale.order", "write", [[int(order_id)], {"carrier_id": CARRIER_ENVIO_ID}])
+            odoo.create(
+                "sale.order.line",
+                {
+                    "order_id": int(order_id),
+                    "product_id": PRODUCTO_ENVIO_ID,
+                    "name": "Standard delivery",
+                    "product_uom_qty": 1,
+                    "price_unit": costo,
+                    "is_delivery": True,
+                },
+            )
+        return {"envio_gratis": False, "costo_envio_aplicado": costo}
+    return {"envio_gratis": gratis, "costo_envio_aplicado": 0.0}
+
+
+@beta_tool
+def modificar_cotizacion(
+    folio: str = "",
+    order_id: int = 0,
+    agregar: list[dict] | None = None,
+    quitar: list[int] | None = None,
+    cambiar_cantidad: list[dict] | None = None,
+    costo_envio: float = 0.0,
+) -> str:
+    """Modifica una cotizacion en BORRADOR: agrega, quita o cambia la cantidad de sus lineas.
+
+    Usala cuando el cliente ya tiene cotizacion y pide un cambio ('quitame las faldas',
+    'subele a 4 la talla 6', 'agregale 2 blusas mas'). Valida existencia real por variante y
+    recalcula el total y el envio (incluida la regla de envio gratis). Al terminar le reenvia al
+    cliente la foto actualizada.
+
+    Solo funciona si la cotizacion esta en BORRADOR. Si ya esta confirmada, esta tool te lo dice
+    y entonces debes escalar con escalar_a_benny: no le prometas al cliente un cambio que no se
+    pudo hacer. Llama primero a consultar_cotizacion para ver las lineas y sus line_id.
+
+    Args:
+        folio: Numero de la cotizacion (ej. 'S04552'). Sin argumentos usa la de esta conversacion.
+        order_id: Id interno de la orden, si lo tienes. Opcional.
+        agregar: Lineas nuevas, UNA por variante:
+            {"template_id": int, "talla": str, "color": str, "cantidad": int}.
+        quitar: Lista de line_id a eliminar (los devuelve consultar_cotizacion).
+        cambiar_cantidad: [{"line_id": int, "cantidad": int}]. cantidad 0 elimina la linea.
+        costo_envio: Costo de envio a aplicar si el pedido queda por debajo del umbral. Opcional.
+    """
+    import json
+
+    try:
+        orden = _buscar_orden(folio=folio, order_id=order_id)
+    except OdooError as exc:
+        return f"ERROR_ODOO: {exc}. No se modifico nada; escala o reintenta."
+    if not orden:
+        return (
+            "NO_ENCONTRADA: no hay cotizacion que modificar. NO inventes un folio; pide el folio "
+            "al cliente o crea una nueva con crear_cotizacion."
+        )
+
+    oid = orden["id"]
+    nombre = _norm(orden.get("name")) or str(oid)
+    estado = _norm(orden.get("state"))
+    if estado not in ("draft", "sent"):
+        return json.dumps(
+            {
+                "modificada": False,
+                "folio": nombre,
+                "estado": estado,
+                "_instruccion": (
+                    f"La cotizacion {nombre} YA ESTA CONFIRMADA (estado {estado}) y no se puede "
+                    "modificar desde aqui. NO le digas al cliente que ya se cambio. Escala con "
+                    "escalar_a_benny explicando el cambio que pide, y dile al cliente que se lo "
+                    "confirmas en un momento."
+                ),
+            },
+            ensure_ascii=False,
+        )
+
+    faltantes: list = []
+    hechos: list[str] = []
+    try:
+        # 1) Quitar lineas.
+        ids_quitar = [int(i) for i in (quitar or []) if int(i or 0)]
+        for c in cambiar_cantidad or []:
+            if int(c.get("cantidad") or 0) <= 0 and c.get("line_id"):
+                ids_quitar.append(int(c["line_id"]))
+        if ids_quitar:
+            odoo.execute_kw("sale.order.line", "unlink", [ids_quitar])
+            hechos.append(f"quitadas {len(ids_quitar)} linea(s)")
+
+        # 2) Cambiar cantidades (capadas a la existencia real de la variante).
+        for c in cambiar_cantidad or []:
+            lid, cant = int(c.get("line_id") or 0), int(c.get("cantidad") or 0)
+            if not lid or cant <= 0 or lid in ids_quitar:
+                continue
+            linea = odoo.search_read(
+                "sale.order.line", [["id", "=", lid]], fields=["product_id"], limit=1
+            )
+            if not linea:
+                continue
+            var_id = linea[0]["product_id"][0]
+            disp = odoo.search_read(
+                "product.product", [["id", "=", var_id]], fields=["free_qty"], limit=1
+            )
+            libre = int((disp[0].get("free_qty") if disp else 0) or 0)
+            surtir = min(cant, max(libre, 0))
+            if surtir <= 0:
+                faltantes.append({"line_id": lid, "pedido": cant, "disponible": libre})
+                continue
+            if surtir < cant:
+                faltantes.append({"line_id": lid, "pedido": cant, "disponible": surtir})
+            odoo.execute_kw("sale.order.line", "write", [[lid], {"product_uom_qty": surtir}])
+            hechos.append(f"linea {lid} a {surtir} pz")
+
+        # 3) Agregar lineas nuevas, con la misma validacion por variante que crear_cotizacion.
+        if agregar:
+            nuevas, falt_nuevas = _resolver_variantes(agregar)
+            faltantes.extend(falt_nuevas)
+            for _, _, vals in nuevas:
+                odoo.create(
+                    "sale.order.line",
+                    {
+                        "order_id": oid,
+                        "product_id": vals["product_id"],
+                        "product_uom_qty": vals["product_uom_qty"],
+                    },
+                )
+            if nuevas:
+                hechos.append(f"agregadas {len(nuevas)} linea(s)")
+
+        # 4) Recalcular envio con la regla de envio gratis sobre el subtotal NUEVO.
+        envio = _recalcular_envio(oid, costo_envio)
+    except OdooError as exc:
+        return (
+            f"ERROR_ODOO: {exc}. La cotizacion {nombre} pudo quedar a medias; NO le confirmes el "
+            "cambio al cliente y escala con escalar_a_benny."
+        )
+
+    actualizada = _leer_orden(oid)
+    datos = _payload_orden(actualizada) if actualizada else {"folio": nombre}
+    pdf_url = _pdf_cotizacion_url(oid)
+    # La foto vieja ya no refleja el pedido: se genera de nuevo.
+    imagen_url = _imagen_cotizacion_url(oid, pdf_url, nombre)
+
+    sid = current_subscriber_id.get()
+    imagen_enviada = False
+    if imagen_url and sid:
+        imagen_enviada = bool(enviar_mensaje(sid, "", imagen_url=imagen_url).get("ok"))
+
+    ficha_mod.set_cotizacion(
+        folio=datos.get("folio") or nombre,
+        order_id=oid,
+        total=datos.get("total"),
+        estado=datos.get("estado") or "draft",
+        pdf_url=pdf_url,
+        imagen_url=imagen_url,
+    )
+
+    # Espejo a Telegram: el agente acaba de escribir en una orden real de Odoo, Benny tiene que
+    # poder verlo sin entrar al sistema.
+    detalle_envio = (
+        "gratis" if envio.get("envio_gratis") else f"${envio.get('costo_envio_aplicado')}"
+    )
+    enviar_telegram(
+        "✏️ Cotizacion modificada por el agente\n\n"
+        f"Cliente {sid or 'sin identificar'}\n"
+        f"Folio {datos.get('folio') or nombre} (order_id {oid})\n"
+        f"Cambios: {'; '.join(hechos) or 'sin cambios efectivos'}\n"
+        f"Nuevo total: ${datos.get('total')}\n"
+        f"Envio: {detalle_envio}"
+    )
+
+    datos.update(
+        {
+            "modificada": True,
+            "cambios_aplicados": hechos,
+            "faltantes": faltantes,
+            "pdf_url": pdf_url,
+            "imagen_cotizacion_url": imagen_url,
+            "imagen_enviada": imagen_enviada,
+            **envio,
+            "_instruccion": (
+                "Usa EXACTAMENTE el folio y el total nuevos que vienen aqui. Si 'faltantes' no "
+                "esta vacio, dile al cliente con claridad que de esas tallas/colores solo se pudo "
+                "completar lo disponible y ofrece alternativas (nunca solo 'no hay'). Si "
+                "imagen_enviada=true, ya le llego la cotizacion actualizada como foto: "
+                "confirmaselo. Si envio_gratis=true, avisale que su envio quedo GRATIS."
+            ),
+        }
+    )
+    return json.dumps(datos, ensure_ascii=False)
 
 
 @beta_tool

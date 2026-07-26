@@ -9,6 +9,12 @@ Flujo por mensaje (ASINCRONO, para respetar el limite de 10s de ManyChat):
    por la Sending API de ManyChat (sendContent), no por la respuesta del webhook.
 Cada turno queda en la bitacora de decisiones para el loop de mejora.
 
+Memoria: la transcripcion completa vive en SQLite (session_store.mensajes, append-only) y el
+estado estructurado en la ficha (src/ficha.py). Cada turno se le manda al modelo una ventana de
+los ultimos cfg.max_mensajes mas el bloque <estado_conversacion>. Antes solo se guardaban 20
+entradas y se recortaba al ESCRIBIR, asi que el hilo viejo se borraba del disco y el agente
+volvia a preguntar tallas y colores ya confirmados.
+
 Bucle de conversacion: NO se arma con una flecha de regreso (ManyChat no lo permite).
 El disparador 'Default Reply' re-dispara el flujo con CADA mensaje del cliente; el
 flujo en ManyChat debe ser solo: Default Reply -> Solicitud externa (sin paso de
@@ -22,10 +28,17 @@ import re
 import httpx
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 
-from . import aprendizajes, decision_log, escalation_rules, request_context, session_store
+from . import (
+    aprendizajes,
+    decision_log,
+    escalation_rules,
+    ficha as ficha_mod,
+    request_context,
+    session_store,
+)
 from .agent import responder
 from .config import cfg
-from .manychat_api import enviar_mensaje
+from .manychat_api import enviar_mensaje, formato_whatsapp
 from .telegram_api import enviar_telegram
 from .tools.manychat_tools import escalar_impl, notificar_pago_impl
 from .transcribe import transcribir
@@ -39,6 +52,13 @@ _URL_EN_TEXTO = re.compile(r"https?://\S+")
 # Comando con el que Benny le ENSENA algo al agente por WhatsApp.
 _APRENDE_RE = re.compile(
     r"^\s*(?:aprende|aprender|aprendizaje|nota|recuerda)\s*[:\-]\s*(.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+# Orden interna desde Telegram para actuar sobre la conversacion de UN cliente concreto:
+#   CLIENTE 1491137321: mandale otra vez su cotizacion
+# El '#' es un atajo equivalente. El subscriber_id de ManyChat es numerico.
+_ORDEN_RE = re.compile(
+    r"^\s*(?:cliente|#)\s*(\d{4,})\s*[:\-,]?\s*(.+)$",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -154,12 +174,14 @@ async def inbound(
 
 
 @app.post("/telegram/inbound")
-async def telegram_inbound(request: Request) -> dict:
-    """Canal INTERNO. Solo acepta 'APRENDE:' y devuelve el chat_id; NO corre el agente.
+async def telegram_inbound(request: Request, background_tasks: BackgroundTasks) -> dict:
+    """Canal INTERNO: 'APRENDE:' para ensenar reglas y 'CLIENTE <id>: ...' para dar ordenes.
 
-    Deliberadamente no procesa nada mas: este canal es para que Benny ensene reglas y
-    reciba escalaciones, no para conversar. Asi un mensaje suyo nunca se confunde con
-    una conversacion de venta (que es justo lo que pasaba en WhatsApp).
+    Sigue sin ser un canal de conversacion: un mensaje suelto no corre el agente, para que un
+    mensaje del equipo nunca se confunda con una venta (que es lo que pasaba en WhatsApp, donde
+    un "CONTESTA AL CLIENTE" de Benny disparo notificar_pago_multiple). El agente solo se
+    ejecuta con la forma explicita 'CLIENTE <subscriber_id>: <instruccion>', y siempre sobre la
+    conversacion de ese cliente.
     """
     if cfg.telegram_webhook_secret:
         if request.headers.get("x-telegram-bot-api-secret-token") != cfg.telegram_webhook_secret:
@@ -206,10 +228,26 @@ async def telegram_inbound(request: Request) -> dict:
         )
         return {"status": "ok"}
 
+    # Orden sobre la conversacion de un cliente. En segundo plano: el agente + Odoo tardan mas
+    # de lo que Telegram espera por el webhook.
+    orden = _ORDEN_RE.match(texto)
+    if orden:
+        sid_destino, instruccion = orden.group(1), orden.group(2).strip()
+        enviar_telegram(
+            f"🤖 Entendido, trabajando sobre el cliente {sid_destino}...", chat_id=chat_id
+        )
+        background_tasks.add_task(
+            _procesar_orden_interna, sid_destino, instruccion, chat_id
+        )
+        return {"status": "ok"}
+
     enviar_telegram(
-        "Este canal recibe escalaciones y avisos de pago, y acepta reglas nuevas.\n\n"
-        'Para ensenarme algo: "APRENDE: <la regla>".\n'
-        "Para contestarle a un cliente, hazlo por WhatsApp.",
+        "Este canal recibe escalaciones y avisos de pago, y acepta dos comandos:\n\n"
+        '• "APRENDE: <la regla>" — lo guardo como conocimiento permanente.\n'
+        '• "CLIENTE <id>: <instruccion>" — actuo sobre la conversacion de ese cliente.\n'
+        "   Ej: CLIENTE 1491137321: mandale otra vez su cotizacion\n"
+        "   Ej: CLIENTE 1491137321: recuerdale que lleva y pregunta si avanzamos\n\n"
+        "El id del cliente sale de las escalaciones que te mando.",
         chat_id=chat_id,
     )
     return {"status": "ok"}
@@ -223,6 +261,126 @@ def _entrega(res: dict) -> str:
     if detalle.startswith("sombra"):
         return "sombra (no enviado al cliente)"
     return f"FALLO: {detalle}"
+
+
+def _armar_messages(
+    subscriber_id: str, texto: str, image_url: str = "", prefijo: str = ""
+) -> list[dict]:
+    """Arma los 'messages' del turno: historial + ficha + mensaje nuevo.
+
+    La ficha (<estado_conversacion>) se antepone al mensaje NUEVO, no al system: el bloque system
+    es el prefijo cacheado (~10,552 tokens) y es identico para todos los clientes. Meter datos
+    por cliente ahi invalidaria el prompt caching en cada turno y triplicaria el costo.
+    """
+    # El mensaje entrante ya se registro en la transcripcion, asi que se omite de la ventana:
+    # aqui va aparte como bloque nuevo, con su imagen si trae.
+    previos = session_store.ventana_para_modelo(subscriber_id, omitir_ultimos=1)
+
+    estado = ficha_mod.cargar_y_render(subscriber_id)
+
+    contenido: list[dict] = []
+    # Si la ventana ya termina en 'user' (pasa cuando el cliente manda dos mensajes seguidos y
+    # los turnos se solapan), su texto se funde con este bloque en vez de agregar un segundo
+    # mensaje de user: la Messages API espera roles alternados.
+    if previos and previos[-1]["role"] == "user":
+        contenido.append({"type": "text", "text": previos.pop()["content"]})
+
+    encabezado = "\n\n".join(p for p in (prefijo, estado) if p)
+    if encabezado:
+        contenido.append({"type": "text", "text": encabezado})
+    if texto:
+        contenido.append({"type": "text", "text": texto})
+    if image_url:
+        contenido.append(_bloque_imagen(image_url))
+    if not texto and not image_url:
+        contenido.append({"type": "text", "text": "(el cliente envio un mensaje sin texto)"})
+    return previos + [{"role": "user", "content": contenido}]
+
+
+_PREFIJO_ORDEN = """\
+<orden_interna>
+Lo que sigue NO es un mensaje del cliente: es una instruccion del equipo de ITERA (Benny) sobre \
+esta conversacion.
+- Tu respuesta se le envia AL CLIENTE, no a Benny. Escribele al cliente, en tu voz normal de \
+vendedor, como si retomaras la conversacion. NUNCA le hables a Benny ni menciones que recibiste \
+una instruccion interna.
+- Cumple la instruccion usando tus herramientas: reenviar_cotizacion para mandarle otra vez su \
+cotizacion, consultar_cotizacion para recordarle exactamente que lleva (folio y total REALES, \
+nunca de memoria), enviar_fotos_producto para mandarle fotos, buscar_catalogo para encontrar un \
+modelo.
+- Si la instruccion no se puede cumplir con tus herramientas, NO improvises ni inventes datos: \
+escala con escalar_a_benny explicando que falta.
+</orden_interna>
+INSTRUCCION DEL EQUIPO: """
+
+
+def _procesar_orden_interna(sid_destino: str, instruccion: str, chat_origen: str) -> None:
+    """Ejecuta una orden del equipo sobre la conversacion de un cliente concreto.
+
+    Resuelve el caso que fallaba en produccion: Benny pedia "al cliente que pregunto por
+    guayabera hazle la lista de lo que lleva y enviasela" y el agente le contestaba A BENNY, con
+    datos inventados, sin mandarle nada al cliente.
+    """
+    # El ContextVar apunta al CLIENTE: es lo que hace que las tools (fotos, cotizacion) le
+    # entreguen a el y no a quien dio la orden.
+    request_context.current_subscriber_id.set(sid_destino)
+
+    # Ventana de 24h de WhatsApp: fuera de ella un envio libre no se entrega (Meta exige una
+    # plantilla aprobada). Se avisa en vez de fallar en silencio, que es lo que pasaba antes.
+    dentro, horas = session_store.dentro_de_ventana_wa(sid_destino)
+    if not dentro:
+        detalle = (
+            f"hace {horas:.0f} h que no escribe" if horas is not None else "no hay mensajes suyos"
+        )
+        enviar_telegram(
+            f"⛔ No pude escribirle al cliente {sid_destino}: {detalle}, esta FUERA de la ventana "
+            "de 24 h de WhatsApp.\n\nMeta solo permite reabrir la conversacion con una plantilla "
+            "aprobada. Escribele tu desde ManyChat y en cuanto conteste vuelvo a poder atenderlo.",
+            chat_id=chat_origen,
+        )
+        decision_log.registrar(
+            sid_destino,
+            instruccion,
+            accion="orden_interna",
+            error=f"fuera de ventana de 24h ({detalle})",
+        )
+        return
+
+    session_store.agregar_mensaje(sid_destino, "operador", f"[Orden del equipo] {instruccion}")
+    messages = _armar_messages(sid_destino, instruccion, prefijo=_PREFIJO_ORDEN)
+
+    try:
+        texto_respuesta, tools_usadas, llamadas = responder(messages)
+    except Exception as exc:  # noqa: BLE001
+        enviar_telegram(
+            f"⚠️ Falló la orden sobre el cliente {sid_destino}: {exc}", chat_id=chat_origen
+        )
+        decision_log.registrar(
+            sid_destino, instruccion, accion="error", error=f"orden_interna: {exc}"
+        )
+        return
+
+    session_store.agregar_mensaje(
+        sid_destino, "assistant", texto_respuesta, tools=tools_usadas
+    )
+    res = enviar_mensaje(sid_destino, texto_respuesta)
+    entrega = _entrega(res)
+
+    enviar_telegram(
+        f"{'✅' if res.get('ok') else '⚠️'} Orden ejecutada sobre el cliente {sid_destino}\n\n"
+        f"Le envie:\n{formato_whatsapp(texto_respuesta)}\n\n"
+        f"Tools: {', '.join(tools_usadas) or 'ninguna'}\nEntrega: {entrega}",
+        chat_id=chat_origen,
+    )
+    decision_log.registrar(
+        sid_destino,
+        instruccion,
+        accion="orden_interna",
+        respuesta=formato_whatsapp(texto_respuesta),
+        tools_invocadas=tools_usadas,
+        motivo_escalacion=decision_log.motivo_de(llamadas),
+        entrega=entrega,
+    )
 
 
 def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) -> None:
@@ -307,6 +465,20 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
 
     tiene_imagen = bool(image_url)
 
+    # El mensaje entrante se registra en la transcripcion ANTES de todo lo demas: aunque el turno
+    # falle o lo atrape un gate, el mensaje del cliente no se pierde. Va antes de los gates a
+    # proposito: un comprobante de pago o una queja tambien son parte del hilo, y ademas cuentan
+    # para la ventana de 24h (si no, un cliente que solo mando su comprobante pareceria inactivo
+    # y no se le podria recontactar).
+    tipo_msg = "imagen" if image_url else ("audio" if audio_url else "texto")
+    session_store.agregar_mensaje(
+        subscriber_id,
+        "user",
+        texto,
+        tipo=tipo_msg,
+        media_url=image_url or audio_url or "",
+    )
+
     # --- Gate determinista (antes del LLM) ---
     accion = escalation_rules.evaluar(texto, tiene_imagen)
     if accion and accion["tipo"] == "pago":
@@ -315,6 +487,7 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
             comprobante_url=image_url,
         )
         res = enviar_mensaje(subscriber_id, accion["mensaje_cliente"])
+        session_store.agregar_mensaje(subscriber_id, "assistant", accion["mensaje_cliente"])
         decision_log.registrar(
             subscriber_id,
             texto,
@@ -331,6 +504,7 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
             urgente=True,
         )
         res = enviar_mensaje(subscriber_id, accion["mensaje_cliente"])
+        session_store.agregar_mensaje(subscriber_id, "assistant", accion["mensaje_cliente"])
         decision_log.registrar(
             subscriber_id,
             texto,
@@ -342,20 +516,10 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
         return
 
     # --- Camino normal: agente ---
-    turnos, slots = session_store.cargar(subscriber_id)
-
-    contenido: list[dict] = []
-    if texto:
-        contenido.append({"type": "text", "text": texto})
-    if image_url:
-        contenido.append(_bloque_imagen(image_url))
-    if not contenido:
-        contenido.append({"type": "text", "text": "(el cliente envio un mensaje sin texto)"})
-
-    messages = list(turnos) + [{"role": "user", "content": contenido}]
+    messages = _armar_messages(subscriber_id, texto, image_url)
 
     try:
-        texto_respuesta, tools_usadas = responder(messages)
+        texto_respuesta, tools_usadas, llamadas = responder(messages)
     except Exception as exc:  # noqa: BLE001 — cualquier fallo se registra y se degrada con gracia
         res = enviar_mensaje(
             subscriber_id, "Permítame confirmarle eso en un momento, por favor 🙏"
@@ -365,12 +529,9 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
         )
         return
 
-    # Guardar historial (solo texto; las imagenes no se re-persisten).
-    nuevos_turnos = list(turnos) + [
-        {"role": "user", "content": texto or "(imagen)"},
-        {"role": "assistant", "content": texto_respuesta},
-    ]
-    session_store.guardar(subscriber_id, nuevos_turnos, slots)
+    session_store.agregar_mensaje(
+        subscriber_id, "assistant", texto_respuesta, tools=tools_usadas
+    )
 
     # Entregar al cliente y registrar el turno CON el resultado de la entrega, para
     # detectar el caso 'respondio en el log pero el cliente no recibio nada'.
@@ -380,7 +541,10 @@ def _procesar(subscriber_id: str, texto: str, image_url: str, audio_url: str) ->
         subscriber_id,
         texto,
         accion=accion_log,
-        respuesta=texto_respuesta,
+        # Se loguea el texto YA formateado: es el que recibe el cliente. Antes se guardaba el
+        # crudo y la bitacora mostraba **dobles** que formato_whatsapp ya habia convertido.
+        respuesta=formato_whatsapp(texto_respuesta),
         tools_invocadas=tools_usadas,
+        motivo_escalacion=decision_log.motivo_de(llamadas),
         entrega=_entrega(res),
     )

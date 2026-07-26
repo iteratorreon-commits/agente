@@ -14,8 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src import agent, decision_log, escalation_rules, session_store  # noqa: E402
-from src.agent import responder  # noqa: E402
+from src import agent, decision_log, escalation_rules, request_context, session_store  # noqa: E402
+from src.main import _armar_messages  # noqa: E402
 
 SID = "test-cli-001"
 
@@ -38,9 +38,11 @@ def main() -> None:
             decision_log.registrar(SID, texto, accion=f"gate_{gate['tipo']}")
             continue
 
-        turnos, slots = session_store.cargar(SID)
-        messages = list(turnos) + [{"role": "user", "content": texto}]
-        respuesta, tools = responder(messages)
+        # Mismo camino que produccion: se registra el mensaje y se arma la ventana + ficha.
+        request_context.current_subscriber_id.set(SID)
+        session_store.agregar_mensaje(SID, "user", texto)
+        messages = _armar_messages(SID, texto)
+        respuesta, tools, _llamadas = agent.responder(messages)
         if tools:
             print(f"  (tools: {', '.join(tools)})")
         u = agent.ultimo_uso
@@ -52,12 +54,7 @@ def main() -> None:
                 f" | stop={u.get('stop_reason')})"
             )
         print(f"Agente> {respuesta}\n")
-
-        nuevos = list(turnos) + [
-            {"role": "user", "content": texto},
-            {"role": "assistant", "content": respuesta},
-        ]
-        session_store.guardar(SID, nuevos, slots)
+        session_store.agregar_mensaje(SID, "assistant", respuesta, tools=tools)
 
 
 if __name__ == "__main__":

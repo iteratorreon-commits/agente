@@ -13,6 +13,25 @@ from pathlib import Path
 
 from .config import cfg
 
+# Tools cuyo argumento 'motivo' explica una escalacion.
+_TOOLS_ESCALACION = ("escalar_a_benny", "notificar_pago_multiple")
+
+
+def motivo_de(llamadas: list[dict] | None) -> str:
+    """Extrae el motivo de escalacion de las llamadas a tools del turno.
+
+    Antes el campo quedaba SIEMPRE vacio en las escalaciones del agente (solo se guardaban los
+    nombres de las tools), y la skill 'revisar-agente-vendedor' agrupa justo por este campo, asi
+    que no podia analizar ninguna. Ahora sale del argumento real que mando el modelo.
+    """
+    for c in llamadas or []:
+        if c.get("tool") in _TOOLS_ESCALACION:
+            entrada = c.get("input") or {}
+            motivo = entrada.get("motivo") or entrada.get("mensaje") or ""
+            if motivo:
+                return str(motivo)[:300]
+    return ""
+
 
 def registrar(
     subscriber_id: str,

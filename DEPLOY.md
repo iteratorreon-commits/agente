@@ -125,28 +125,68 @@ Orden (importa, porque el bot te dice tu `chat_id` pero necesita el webhook vivo
 5. Pon ese número en `TELEGRAM_CHAT_ID` (y los de finanzas en `TELEGRAM_NOTIFY_CHAT_IDS`,
    separados por coma). **Save** → redeploy.
 
-Listo: las escalaciones y los avisos de pago llegan a Telegram, y ahí mismo puedes mandar
-`APRENDE: <la regla>`.
+Listo: las escalaciones y los avisos de pago llegan a Telegram, y ahí mismo tienes dos comandos.
 
-**Qué NO hace este canal, a propósito:** no corre el agente vendedor. Solo acepta `APRENDE:`
-y responde el `chat_id`. Así un mensaje tuyo nunca se confunde con una conversación de venta
-—que es justo lo que pasaba en WhatsApp— y no hay riesgo de contestarle al cliente
-equivocado. Para responderle a un cliente, sigue siendo por WhatsApp.
+### Los dos comandos del canal interno
+
+**`APRENDE: <la regla>`** — la guarda como conocimiento permanente y la aplica en todas las
+conversaciones.
+
+**`CLIENTE <subscriber_id>: <instrucción>`** — le da una orden al agente sobre la conversación
+de un cliente concreto. La respuesta se le envía **al cliente**, no a ti, y el agente usa sus
+herramientas para cumplirla:
+
+```
+CLIENTE 1491137321: mándale otra vez su cotización
+CLIENTE 1491137321: recuérdale qué lleva y pregunta si avanzamos
+CLIENTE 1491137321: mándale la foto de la Camisa Guayabera
+```
+
+El `subscriber_id` viene en cada escalación que te llega. `#1491137321 ...` es un atajo
+equivalente. Al terminar te confirma por Telegram **qué le envió** y con qué tools.
+
+**Límite de la ventana de 24 h.** WhatsApp solo deja enviar libre dentro de las 24 h desde el
+último mensaje del cliente. Si ya pasaron, el agente **no lo intenta** y te avisa por Telegram
+para que le escribas tú desde ManyChat; en cuanto el cliente conteste, la ventana se reabre y
+el agente vuelve a poder atenderlo. (Para reactivar fuera de ventana Meta exige una plantilla
+aprobada, y además tiene que llevar **botón de respuesta**: sin él la ventana no se reabre y los
+mensajes siguientes tampoco se entregan. Eso no está implementado.)
+
+**Un mensaje suelto NO corre el agente**, a propósito: solo lo corre la forma explícita
+`CLIENTE <id>: ...`. Así un mensaje tuyo nunca se confunde con una conversación de venta —que
+es justo lo que pasaba en WhatsApp, donde un "CONTESTA AL CLIENTE" tuyo disparó
+`notificar_pago_multiple`.
 
 **Si falta el token, no se pierde nada:** el código detecta que Telegram no está configurado
-y manda las escalaciones por WhatsApp como antes.
+y manda las escalaciones por WhatsApp como antes (las órdenes sí necesitan Telegram).
 
 ---
 
 ### Notas / límites conocidos
 - **1 sola instancia** (SQLite no se comparte). Con ~100 conversaciones/día sobra.
+- **Memoria de conversación.** La transcripción completa vive en la tabla `mensajes` de
+  `/data/agente.db` (append-only: el código nunca borra de ahí) y el estado estructurado en la
+  columna `conversations.ficha`. `AGENTE_MAX_MENSAJES` (default 40) solo limita cuántos mensajes
+  se le reenvían al modelo, no cuántos se guardan. Antes se guardaban 20 entradas y se recortaba
+  **al escribir**, así que el hilo viejo se borraba del disco y el agente volvía a preguntar
+  tallas ya confirmadas.
+- **La ficha va en `messages`, nunca en el `system`.** El bloque system es el prefijo cacheado y
+  es idéntico para todos los clientes; meter datos por cliente ahí invalidaría el prompt caching
+  en cada turno. Si `cache_read` cae a 0, revisar eso primero.
+- **Límites de ManyChat que no se pueden arreglar en código:** el *caption* de las fotos y el
+  *mensaje citado* (cuando el cliente responde citando un mensaje anterior) **no llegan**.
+  ManyChat solo expone "Última entrada de texto", y con una foto mete ahí la URL y descarta el
+  texto — confirmado por ManyChat en su comunidad. La API de WhatsApp Cloud sí los manda
+  (`image.caption`, `context.id`), pero ManyChat está en medio. Mitigado con el historial íntegro
+  y la ficha: el agente conserva los modelos que ya mostró (con su `template_id`) y resuelve
+  "de este quiero 6", o pregunta una sola cosa concreta.
 - El procesamiento es en segundo plano (BackgroundTasks). Si el proceso reinicia justo en
   medio de un turno, ese turno se pierde (a este volumen, riesgo bajo). Si crece mucho,
   migrar a una cola durable + Postgres.
 - El gasto grande NO es Render (~$8/mo): son los tokens del modelo. Desde la migración a
   Sonnet 5 con prompt caching el costo por turno baja ~70% respecto a Opus 4.8. El precio
   introductorio de Sonnet 5 ($2/$10 por millón) termina el 31-ago-2026 y sube a $3/$15.
-- El prompt caching cachea las 8 tools + el system prompt (~4k tokens) en un solo
+- El prompt caching cachea las 12 tools + el system prompt en un solo
   breakpoint. Se invalida cuando Benny manda un `APRENDE:` y se vuelve a calentar solo.
   Si `cache_read` sale 0 turno tras turno en la bitácora, algo rompió el prefijo.
 - Las escalaciones y avisos de pago van por **Telegram** (ver Paso 8). Si el token falta,
