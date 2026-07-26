@@ -18,6 +18,7 @@ import httpx
 from anthropic import beta_tool
 
 from .. import ficha as ficha_mod
+from .. import precios as precios_mod
 from .. import session_store
 from ..config import cfg
 from ..manychat_api import enviar_mensaje
@@ -61,23 +62,26 @@ def _umbral_envio_gratis() -> float:
         return 4000.0
 
 
-def _resolver_variantes(lineas: list[dict]) -> tuple[list, list]:
-    """Resuelve cada linea {template_id, talla, color, cantidad} a su VARIANTE exacta y
-    verifica existencia real (free_qty = disponible, ya sin lo reservado).
+def _variantes_por_template(tmpl_ids: list[int]) -> dict[int, list[dict]]:
+    """Variantes ACTIVAS de cada template, con su talla y color ya resueltos.
 
-    Devuelve (order_lines, faltantes):
-    - order_lines: tuplas (0,0,{product_id, product_uom_qty}) UNA por variante, con SOLO lo
-      que se puede completar (capado a lo disponible). Nunca sobre-promete stock.
-    - faltantes: lista de lo que no se pudo cubrir, para que el agente ofrezca alternativas:
-      {template_id, talla, color, pedido, disponible, faltan} o {..., motivo}.
+    Es la unica lectura de variantes del modulo: la comparten _resolver_variantes (que arma
+    la cotizacion), buscar_catalogo y consultar_stock (que muestran el precio por talla).
+    Antes esta resolucion de ptav -> talla/color vivia solo dentro de _resolver_variantes.
+
+    Cada entrada trae 'variant_id', 'talla', 'color' y 'free' (existencia ya sin lo
+    reservado), MAS los campos crudos de Odoo que precios.py necesita para calcular el
+    precio (standard_price, lst_price, categ_id, product_tmpl_id).
     """
-    tmpl_ids = sorted({int(it["template_id"]) for it in lineas if it.get("template_id")})
     if not tmpl_ids:
-        return [], []
+        return {}
     variantes = odoo.search_read(
         "product.product",
-        [["product_tmpl_id", "in", tmpl_ids], ["active", "=", True]],
-        fields=["id", "product_tmpl_id", "product_template_attribute_value_ids", "free_qty"],
+        [["product_tmpl_id", "in", [int(t) for t in tmpl_ids]], ["active", "=", True]],
+        fields=[
+            "id", "product_tmpl_id", "display_name", "product_template_attribute_value_ids",
+            "free_qty", "standard_price", "lst_price", "categ_id",
+        ],
         limit=2000,
     )
     ptav_ids = sorted({i for v in variantes for i in (v.get("product_template_attribute_value_ids") or [])})
@@ -103,8 +107,61 @@ def _resolver_variantes(lineas: list[dict]) -> tuple[list, list]:
             elif "COLOR" in atype:
                 color = val
         por_tmpl.setdefault(tmpl, []).append(
-            {"variant_id": v["id"], "free": int(v.get("free_qty") or 0), "talla": talla, "color": color}
+            dict(v, variant_id=v["id"], free=int(v.get("free_qty") or 0), talla=talla, color=color)
         )
+    return por_tmpl
+
+
+def _precios_de_templates(por_tmpl: dict[int, list[dict]]) -> dict[int, dict]:
+    """Precio de venta por template: {'precio_desde', 'precio_hasta', 'precio_por_talla'}.
+
+    Se calcula con la MISMA lista de precios con la que crear_cotizacion arma la orden
+    (cfg.odoo_pricelist_id), asi que el precio que el agente anuncia es exactamente el que
+    va a salir en la cotizacion.
+
+    Si una talla existe en varios colores con precios distintos se queda el MAS BAJO: es el
+    que sostiene el "desde $X" que usan los catalogos. Un template sin ningun precio
+    calculable devuelve {} y el que llama degrada (nunca inventa un numero).
+    """
+    todas = [v for lista in por_tmpl.values() for v in lista]
+    if not todas:
+        return {}
+    precio_de = precios_mod.precios_de_variantes(todas)
+
+    salida: dict[int, dict] = {}
+    for tmpl, lista in por_tmpl.items():
+        por_talla: dict[str, float] = {}
+        for v in lista:
+            p = precio_de.get(int(v["id"]))
+            if p is None:
+                continue
+            clave = str(v.get("talla") or "unica")
+            if clave not in por_talla or p < por_talla[clave]:
+                por_talla[clave] = p
+        if por_talla:
+            valores = list(por_talla.values())
+            salida[tmpl] = {
+                "precio_desde": min(valores),
+                "precio_hasta": max(valores),
+                "precio_por_talla": por_talla,
+            }
+    return salida
+
+
+def _resolver_variantes(lineas: list[dict]) -> tuple[list, list]:
+    """Resuelve cada linea {template_id, talla, color, cantidad} a su VARIANTE exacta y
+    verifica existencia real (free_qty = disponible, ya sin lo reservado).
+
+    Devuelve (order_lines, faltantes):
+    - order_lines: tuplas (0,0,{product_id, product_uom_qty}) UNA por variante, con SOLO lo
+      que se puede completar (capado a lo disponible). Nunca sobre-promete stock.
+    - faltantes: lista de lo que no se pudo cubrir, para que el agente ofrezca alternativas:
+      {template_id, talla, color, pedido, disponible, faltan} o {..., motivo}.
+    """
+    tmpl_ids = sorted({int(it["template_id"]) for it in lineas if it.get("template_id")})
+    if not tmpl_ids:
+        return [], []
+    por_tmpl = _variantes_por_template(tmpl_ids)
 
     order_lines: list = []
     faltantes: list = []
@@ -342,12 +399,16 @@ def buscar_catalogo(
     color: str = "",
     limit: int = 8,
 ) -> str:
-    """Busca productos en el catalogo de Odoo por nombre y devuelve precio, codigo y tallas/colores disponibles.
+    """Busca productos en el catalogo de Odoo y devuelve su PRECIO, tallas y colores disponibles.
 
     Usa esta herramienta cuando el cliente pregunta por un producto, modelo o categoria
-    (ej. 'blusa campesina', 'vestido Alicia', 'moños tricolor'). Devuelve solo productos
-    publicados y a la venta. NO inventes productos ni precios: si esta tool no devuelve
-    algo, no existe o no esta disponible, y debes escalar o pedir mas detalle.
+    (ej. 'blusa campesina', 'vestido Alicia', 'moños tricolor') y tambien cuando solo
+    pregunta CUANTO CUESTA algo. Devuelve solo productos publicados y a la venta.
+
+    El precio viene aqui YA CALCULADO, con la misma lista con la que se cotiza: 'precio_desde',
+    'precio_hasta' y 'precio_por_talla'. NO hace falta crear una cotizacion para saber un
+    precio, y no debes crearla para eso. NO inventes productos ni precios: si esta tool no
+    devuelve algo, no existe o no esta disponible, y debes escalar o pedir mas detalle.
 
     Args:
         query: Texto de busqueda del producto (nombre o parte del nombre).
@@ -388,29 +449,22 @@ def buscar_catalogo(
         )
 
     ids = [p["id"] for p in productos]
-    # Traer tallas/colores de todos los templates de una vez.
+    # Una sola lectura de variantes sirve para las tallas/colores Y para el precio: el
+    # precio cambia por talla justamente porque el costo cambia por variante.
     try:
-        atributos = odoo.search_read(
-            "product.template.attribute.value",
-            [["product_tmpl_id", "in", ids], ["ptav_active", "=", True]],
-            fields=["name", "attribute_id", "product_tmpl_id"],
-            limit=500,
-        )
+        por_tmpl = _variantes_por_template(ids)
     except OdooError:
-        atributos = []
+        por_tmpl = {}
+    precio_de_tmpl = _precios_de_templates(por_tmpl)
 
     tallas_por_tmpl: dict[int, set[str]] = {}
     colores_por_tmpl: dict[int, set[str]] = {}
-    for a in atributos:
-        tmpl = a["product_tmpl_id"][0] if a.get("product_tmpl_id") else None
-        attr_name = (a["attribute_id"][1] if a.get("attribute_id") else "").upper()
-        val = _norm(a.get("name"))
-        if tmpl is None or not val:
-            continue
-        if "TALLA" in attr_name:
-            tallas_por_tmpl.setdefault(tmpl, set()).add(str(val))
-        elif "COLOR" in attr_name:
-            colores_por_tmpl.setdefault(tmpl, set()).add(str(val))
+    for tmpl, variantes in por_tmpl.items():
+        for v in variantes:
+            if v.get("talla"):
+                tallas_por_tmpl.setdefault(tmpl, set()).add(str(v["talla"]))
+            if v.get("color"):
+                colores_por_tmpl.setdefault(tmpl, set()).add(str(v["color"]))
 
     lineas = []
     for p in productos:
@@ -430,6 +484,7 @@ def buscar_catalogo(
                 "tallas_disponibles": tallas,
                 "colores_disponibles": colores,
                 "imagen_url": _imagen_url(tid),
+                **precio_de_tmpl.get(tid, {}),
             }
         )
 
@@ -460,9 +515,20 @@ def buscar_catalogo(
             "_match": modo,
             "_nota_match": nota_match,
             "_nota_precio": (
-                "Los precios NO vienen en esta busqueda (Odoo los calcula por lista de precios). "
-                "El precio real se obtiene al crear la cotizacion con crear_cotizacion. Recuerda: "
-                "mayoreo desde 6 piezas."
+                "El precio YA viene aqui y es el REAL: 'precio_desde' y 'precio_hasta' son el rango "
+                "del modelo y 'precio_por_talla' el precio exacto de cada talla. Estan calculados "
+                "con la misma lista de precios con la que se hace la cotizacion, asi que coinciden "
+                "con lo que saldra en ella. "
+                "COMO USARLO: dile el precio EN ESTE MISMO TURNO como '*desde $X*' (asi lo dicen "
+                "los catalogos, porque el precio sube en tallas grandes). Si el cliente pregunta por "
+                "una talla concreta, contestale el exacto de 'precio_por_talla' SIN llamar ninguna "
+                "otra tool. "
+                "NUNCA crees una cotizacion solo para averiguar un precio: la cotizacion es para "
+                "cerrar un pedido ya confirmado, no para consultar. "
+                "Es precio de MAYOREO, que aplica desde 6 piezas; si el cliente quiere menos, "
+                "aclaraselo y ofrecele la tienda en linea (no inventes un precio de menudeo). "
+                "Si un producto viene SIN precio, no lo inventes ni lo deduzcas de otro modelo: dile "
+                "que se lo confirmas en un momento y escala."
             ),
         },
         ensure_ascii=False,
@@ -474,20 +540,17 @@ def consultar_stock(template_id: int) -> str:
     """Consulta la existencia real (en vivo) de un producto en Odoo, consolidada por sucursal.
 
     Usa esta tool para confirmar disponibilidad antes de prometer piezas. Devuelve cantidad
-    disponible por sucursal (JZ, MZ, AC/Acuna, MER). El despacho de este canal es desde Acuna,
-    pero las rutas de Odoo surten de otras sucursales si hace falta, asi que informa el total.
+    disponible por sucursal (JZ, MZ, AC/Acuna, MER) y tambien el PRECIO por talla, para que no
+    tengas que volver a buscar el modelo solo para decir cuanto cuesta.
+    El despacho de este canal es desde Acuna, pero las rutas de Odoo surten de otras sucursales
+    si hace falta, asi que informa el total.
     NO inventes cantidades ni des numeros crudos de stock al cliente; usa 'disponible/pocas/agotado'.
 
     Args:
         template_id: El id de product.template (lo devuelve buscar_catalogo).
     """
     try:
-        variantes = odoo.search_read(
-            "product.product",
-            [["product_tmpl_id", "=", template_id], ["active", "=", True]],
-            fields=["id", "display_name"],
-            limit=200,
-        )
+        variantes = _variantes_por_template([template_id]).get(template_id, [])
         if not variantes:
             return "SIN_VARIANTES: el producto no tiene variantes activas. Escala si es raro."
         var_ids = [v["id"] for v in variantes]
@@ -513,12 +576,16 @@ def consultar_stock(template_id: int) -> str:
                 por_sucursal[key] = por_sucursal.get(key, 0) + disponible
                 break
 
+    precio = _precios_de_templates({template_id: variantes}).get(template_id, {})
+
     # Respaldo DETERMINISTA de la ficha: si el agente consulto existencia de este modelo, es el
     # que esta sobre la mesa. anotar_pedido lo decide el modelo y a veces no lo llama, asi que al
     # menos la identidad del producto queda registrada sin depender de eso.
     nombre_tmpl = str(variantes[0].get("display_name") or "").split(" (")[0].strip()
     if nombre_tmpl:
-        ficha_mod.agregar_modelos([{"template_id": template_id, "nombre": nombre_tmpl}])
+        ficha_mod.agregar_modelos(
+            [{"template_id": template_id, "nombre": nombre_tmpl, **precio}]
+        )
 
     total = sum(por_sucursal.values())
     # Etiqueta honesta de escasez (no numeros crudos al LLM->cliente).
@@ -538,6 +605,12 @@ def consultar_stock(template_id: int) -> str:
             "total_disponible": total,
             "por_sucursal": {k: por_sucursal.get(k, 0) for k in ("JZ", "MZ", "AC", "MER")},
             "despacho": "Acuna (AC); rutas de Odoo surten de otras sucursales si falta",
+            **precio,
+            "_nota_precio": (
+                "El precio de este modelo va aqui mismo: dilo como '*desde $X*' y da el exacto de "
+                "'precio_por_talla' si preguntan por una talla. No crees una cotizacion para "
+                "averiguar un precio. Es precio de mayoreo (desde 6 piezas)."
+            ),
         },
         ensure_ascii=False,
     )

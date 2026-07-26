@@ -102,6 +102,11 @@ def agregar_modelos(productos: list[dict], subscriber_id: str = "") -> None:
                 "colores": (
                     p.get("colores_disponibles") or p.get("colores") or previo.get("colores") or []
                 ),
+                # El precio tambien se guarda: sin esto, al turno siguiente el agente solo
+                # podria repetirlo de memoria, que es justo lo que la regla 7 le prohibe.
+                "precio_desde": p.get("precio_desde", previo.get("precio_desde")),
+                "precio_hasta": p.get("precio_hasta", previo.get("precio_hasta")),
+                "precio_por_talla": p.get("precio_por_talla") or previo.get("precio_por_talla") or {},
             }
         # Los mas recientes al final; se conservan los ultimos MAX_MODELOS.
         f["modelos_mostrados"] = list(por_id.values())[-MAX_MODELOS:]
@@ -188,6 +193,40 @@ def set_pedido(
 # --------------------------------------------------------------------------------------
 
 
+def _monto(valor: float) -> str:
+    """$70 en vez de $70.0. El agente copia estos numeros tal cual a WhatsApp."""
+    return f"{valor:.2f}".rstrip("0").rstrip(".")
+
+
+def _texto_precio(modelo: dict) -> str:
+    """Precio de un modelo, agrupando las tallas que cuestan lo mismo.
+
+    Se agrupa a proposito: "precio $70 (tallas 2,4,6,8); $90 (tallas 10,12)" dice lo mismo
+    que listar talla por talla y ocupa la mitad. La ficha se reenvia CADA turno y no esta
+    cacheada, asi que cada token de aqui se paga completo en todos los mensajes.
+    """
+    por_talla = modelo.get("precio_por_talla") or {}
+    if por_talla:
+        agrupado: dict[float, list[str]] = {}
+        for talla, precio in por_talla.items():
+            agrupado.setdefault(float(precio), []).append(str(talla))
+        if len(agrupado) == 1:
+            return f"precio ${_monto(next(iter(agrupado)))}"
+        # Separador " / " y no "; ": el "; " ya separa un modelo del siguiente.
+        partes = [
+            f"${_monto(precio)} (tallas {','.join(tallas)})"
+            for precio, tallas in sorted(agrupado.items())
+        ]
+        return "precio " + " / ".join(partes)
+
+    desde, hasta = modelo.get("precio_desde"), modelo.get("precio_hasta")
+    if desde is None:
+        return ""
+    if desde == hasta:
+        return f"precio ${_monto(desde)}"
+    return f"precio desde ${_monto(desde)} hasta ${_monto(hasta)}"
+
+
 def render(ficha: dict) -> str:
     """Bloque <estado_conversacion> que se antepone al turno del cliente.
 
@@ -222,11 +261,14 @@ def render(ficha: dict) -> str:
             f"[template_id {m['template_id']}] {m.get('nombre')} "
             f"tallas {','.join(map(str, m.get('tallas') or [])) or '-'} "
             f"colores {','.join(map(str, m.get('colores') or [])) or '-'}"
+            + (f" {_texto_precio(m)}" if _texto_precio(m) else "")
             for m in modelos
         )
         partes.append(
-            "Modelos que YA le mostraste (usa estos template_id; si el cliente dice 'este' o "
-            f"responde a un mensaje anterior, el referente esta aqui): {detalle}"
+            "Modelos que YA le mostraste, con su precio REAL de mayoreo (usa estos template_id; "
+            "si el cliente dice 'este' o responde a un mensaje anterior, el referente esta aqui). "
+            "Estos precios son validos para decirselos al cliente sin volver a consultar nada: "
+            f"{detalle}"
         )
 
     envio = ficha.get("envio") or {}

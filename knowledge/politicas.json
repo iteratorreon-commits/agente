@@ -57,7 +57,7 @@
     "texto_mayoreo": "Nuestros precios de mayoreo se aplican a partir de las 6 piezas, usted puede combinar modelos y tallas como prefiera, o puede pedir surtido 😉",
     "accesorios_minimo_piezas": 40,
     "accesorios_excepcion": "En accesorios el mayoreo normalmente aplica desde 40 piezas, pero se le puede respetar el precio de mayoreo a partir de 25 piezas como cortesia para cerrar.",
-    "menos_de_6_piezas": "Aplica precio de MENUDEO, no mayoreo. Se le puede indicar el precio de menudeo del modelito o mandarlo a la tienda en linea.",
+    "menos_de_6_piezas": "Aplica precio de MENUDEO, no mayoreo. El precio que devuelven las tools es el de MAYOREO: el agente NO tiene el de menudeo y no debe inventarlo ni estimarlo. Si el cliente quiere menos de 6 piezas, se le aclara que ese precio es de mayoreo y se le manda a la tienda en linea (itera.cool/shop).",
     "local_recoge_en_torreon": {
       "minimo_pesos": 3000,
       "regla": "Para clientes LOCALES que recogen en la tienda de Torreon, el precio de mayoreo aplica en compras a partir de $3,000 MXN a precio mayorista. Es un minimo en PESOS, no en piezas.",
@@ -77,7 +77,7 @@
     "fecha_fin_preventa": "NO GUARDAR una fecha fija: los vendedores dan respuestas distintas ('ultimo de este mes', '3 semanas', 'aun no tenemos fecha'). Si el cliente pregunta hasta cuando dura la preventa, ESCALAR.",
     "varia_por_talla": {
       "regla": true,
-      "explicacion": "El precio de un mismo modelo CAMBIA segun la talla; por eso los catalogos dicen 'desde $X'. El agente NUNCA debe prometer un precio unico por modelo: el precio real lo calcula Odoo al crear la cotizacion.",
+      "explicacion": "El precio de un mismo modelo CAMBIA segun la talla; por eso los catalogos dicen 'desde $X'. buscar_catalogo y consultar_stock ya devuelven el precio por talla (precio_desde, precio_hasta, precio_por_talla), calculado con la misma lista con la que se cotiza: se comunica como 'desde $X' y se da el exacto de la talla cuando la piden. NO hay que crear una cotizacion para saber un precio.",
       "texto": "A ese precio solo se manejan unas tallas, por eso ponemos *desde*, ya que en tallitas mas grandes aumenta el precio 😊"
     },
     "descuentos": "Cualquier descuento fuera de la lista de precios requiere autorizacion de un superior. El agente NO lo concede: ESCALA con escalar_a_benny y le dice al cliente 'permitame verificarlo, no tardo'."
